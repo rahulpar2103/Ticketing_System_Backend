@@ -1,3 +1,4 @@
+from app.models.userModel import UserRole
 from app.core.security import hash_password, verify_password, create_access_token
 from app.models.userModel import User
 from app.db.redis import redis_client
@@ -29,7 +30,7 @@ class AuthService:
             username=user.username,
             email=user.email,
             hashed_password=hash_password(user.password),
-            role=user.role,
+            role=UserRole(user.role),
             team_id=user.team_id,
         )
         db.add(new_user)
@@ -45,7 +46,7 @@ class AuthService:
 
     def login(self, form_data, db: Session) -> TokenResponse:
         """Public: authenticate with username (or email) + password, return a JWT."""
-        identifier = form_data.username   # OAuth2PasswordRequestForm always calls it 'username'
+        identifier = form_data.username   
 
         if "@" in identifier:
             user = db.execute(select(User).where(User.email == identifier)).scalar_one_or_none()

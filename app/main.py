@@ -16,7 +16,7 @@ from app.core.exceptions import (
     MissingCredentialException,
     ValidationException,
 )
-from app.models import userModel, ticketModel, teamModel  
+from app.models import userModel 
 
 Base.metadata.create_all(bind=engine, checkfirst=True)
 

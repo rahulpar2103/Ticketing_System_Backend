@@ -23,15 +23,16 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     role= Column(Enum(UserRole), nullable=False)
-    team_id = Column(Integer, ForeignKey("teams.id"), nullable=True)
+    # team_id = Column(Integer, ForeignKey("teams.id"), nullable=True)
+    team_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     is_active = Column(Boolean, default=True)
     
     # Relationships
-    team = relationship("Team", back_populates="members")
-    tickets_created = relationship("Ticket", back_populates="created_user", foreign_keys="Ticket.created_by")
-    tickets_assigned = relationship("Ticket", back_populates="assigned_user", foreign_keys="Ticket.assigned_to")
+    # team = relationship("Team", back_populates="members")
+    # tickets_created = relationship("Ticket", back_populates="created_user", foreign_keys="Ticket.created_by")
+    # tickets_assigned = relationship("Ticket", back_populates="assigned_user", foreign_keys="Ticket.assigned_to")
     
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', role='{self.role}')>"
