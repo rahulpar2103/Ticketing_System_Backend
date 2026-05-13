@@ -22,15 +22,19 @@ class AuthService:
                 or_(User.email == user.email, User.username == user.username)
             )
         ).scalar_one_or_none()
+
         if existing:
             raise AlreadyExistsException("A user with that email or username already exists")
+
+        if '@' in user.username or '.' in user.username: 
+            raise AlreadyExistsException("Username cannot contain @ or .")
 
         new_user = User(
             name=user.name,
             username=user.username,
             email=user.email,
             hashed_password=hash_password(user.password),
-            role=UserRole(user.role),
+            role=user.role,
             team_id=user.team_id,
         )
         db.add(new_user)

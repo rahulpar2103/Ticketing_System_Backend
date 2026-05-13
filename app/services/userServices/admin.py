@@ -2,7 +2,6 @@
 from app.core.exceptions import NotFoundException
 from app.db.redis import redis_client
 from app.core.exceptions import PermissionDeniedException
-from app.schemas.userSchema import UserCreate
 # pyrefly: ignore [missing-import]
 from app.schemas.userSchema import UserUpdate
 # pyrefly: ignore [missing-import]
@@ -12,22 +11,44 @@ from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from app.models.userModel import User
 from app.core.security import hash_password
+import json
+# pyrefly: ignore [missing-import]
+from app.schemas.userSchema import UserResponse
 
 class UserServiceAdmin:
-    def get_all_users(self,current_user,db: Session,limit:int,offset:int):
+    def get_all_users(self, current_user, db: Session, limit: int, offset: int) -> list[UserResponse]:
         if current_user.role.value != "admin":
             raise PermissionDeniedException("You do not have permission to get all users")
-        return db.query(User).limit(limit).offset(offset).all()
 
-    def get_user(self,current_user,user_id: int,db: Session):
+        cache_key = f"all_users:{limit}:{offset}"
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return [UserResponse.model_validate(item) for item in json.loads(cached_data)]
+
+        users = db.query(User).limit(limit).offset(offset).all()
+        serialized = [UserResponse.model_validate(u).model_dump(mode="json") for u in users]
+        redis_client.setex(cache_key, 60 * 60, json.dumps(serialized))
+
+        return users
+        
+
+    def get_user(self, current_user, user_id: int, db: Session) -> UserResponse:
         if current_user.role.value != "admin":
             raise PermissionDeniedException("You do not have permission to get a user")
+
+        cache_key = f"user:{user_id}"
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return UserResponse.model_validate(json.loads(cached_data))
+
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise NotFoundException("User not found")
+
+        redis_client.setex(cache_key, 60 * 60, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))
         return user
 
-    def update_user(self, current_user, user_id: int, user: UserUpdate, db: Session):
+    def update_user(self, current_user, user_id: int, user: UserUpdate, db: Session)->UserResponse:
         if current_user.role.value != "admin":
             raise PermissionDeniedException("You do not have permission to update a user")
         
@@ -40,7 +61,9 @@ class UserServiceAdmin:
         
         db.commit()
         db.refresh(user_obj)
-        return user_obj
+        cache_key = f"user:{user_id}"
+        redis_client.delete(cache_key)
+        return {"message": f"User {user_id} updated successfully"}
 
     def delete_user(self,current_user,user_id: int,db: Session):
         if current_user.role.value != "admin":
@@ -50,9 +73,10 @@ class UserServiceAdmin:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise NotFoundException("User not found")
-        db.query(User).filter(User.id == user_id).delete()
+        db.delete(user)
         db.commit()
-        return user
+        redis_client.delete(f"user:{user_id}")
+        return {"message": f"User {user_id} deleted successfully"}
 
     def update_user_password(self,current_user,user_id: int,user_update:passwordUpdate,db: Session):
         if current_user.role.value != "admin":
@@ -63,6 +87,7 @@ class UserServiceAdmin:
         user.hashed_password = hash_password(user_update.new_password)  
         db.commit()
         db.refresh(user)
-        return user
+        redis_client.delete(f"user:{user_id}")
+        return {"message": f"Password updated successfully for user {user_id}"}
 
 user_service_admin = UserServiceAdmin()

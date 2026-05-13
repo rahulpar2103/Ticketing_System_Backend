@@ -22,14 +22,17 @@ def get_all_users(current_user=Depends(get_current_user),db: Session = Depends(g
 def get_user(user_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     return user_service_admin.get_user(current_user,user_id,db)
 
-@router.patch("/update/{user_id}", response_model=UserResponse)
+@router.patch("/update/{user_id}", response_model=dict)
 def update_user(user_id: int,user:UserUpdate, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    return user_service_admin.update_user(current_user,user_id,user,db)
+    message = user_service_admin.update_user(current_user,user_id,user,db)
+    return message
 
-@router.delete("/{user_id}", response_model=UserResponse)
+@router.delete("/{user_id}", response_model=dict)
 def delete_user(user_id: int,current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    return user_service_admin.delete_user(current_user,user_id,db)
+    message = user_service_admin.delete_user(current_user,user_id,db)
+    return message
 
-@router.patch("/update-password/{user_id}", response_model=UserResponse)
+@router.patch("/update-password/{user_id}", response_model=dict)
 def update_user_password(user_id: int,user_update:passwordUpdate, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    return user_service_admin.update_user_password(current_user,user_id,user_update,db)
+    message = user_service_admin.update_user_password(current_user,user_id,user_update,db)
+    return message
