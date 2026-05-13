@@ -29,7 +29,7 @@ class UserServiceAdmin:
         serialized = [UserResponse.model_validate(u).model_dump(mode="json") for u in users]
         redis_client.setex(cache_key, 60 * 60, json.dumps(serialized))
 
-        return users
+        return [UserResponse.model_validate(u) for u in users]
         
 
     def get_user(self, current_user, user_id: int, db: Session) -> UserResponse:

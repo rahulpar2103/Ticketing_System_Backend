@@ -1,3 +1,4 @@
+from app.db.redis import delete_by_prefix
 from app.models.userModel import UserRole
 from app.core.security import hash_password, verify_password, create_access_token
 from app.models.userModel import User
@@ -41,11 +42,7 @@ class AuthService:
         db.commit()
         db.refresh(new_user)
 
-        # Bust paginated user list cache
-        redis_client.delete("all_users")
-        for key in redis_client.scan_iter("user:*"):
-            redis_client.delete(key)
-
+        delete_by_prefix("all_users:")
         return new_user
 
     def login(self, form_data, db: Session) -> TokenResponse:

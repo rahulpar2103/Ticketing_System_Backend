@@ -1,4 +1,5 @@
 # pyrefly: ignore [missing-import]
+import json
 from app.core.exceptions import InvalidCredentialsException
 from app.core.security import verify_password
 from app.core.exceptions import NotFoundException
@@ -23,11 +24,11 @@ class UserServiceEmployee:
         cache_key = f"user:{user_id}"
         cache_data = redis_client.get(cache_key)
         if cache_data:
-            return cache_data
+            return UserResponse.model_validate(cache_data)
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise NotFoundException("User not found")
-        redis_client.setex(cache_key, 3600, user)
+        redis_client.setex(cache_key, 3600, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))
         return user
     
     def update_user_password(self,current_user,user_id: int,user_update:passwordUpdate,db: Session):
