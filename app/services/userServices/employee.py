@@ -1,4 +1,6 @@
 # pyrefly: ignore [missing-import]
+from app.core.exceptions import InvalidCredentialsException
+from app.core.security import verify_password
 from app.core.exceptions import NotFoundException
 # pyrefly: ignore [missing-import]
 from app.models.userModel import User
@@ -31,9 +33,17 @@ class UserServiceEmployee:
     def update_user_password(self,current_user,user_id: int,user_update:passwordUpdate,db: Session):
         if current_user.role.value != "employee"or current_user.id != user_id :
             raise PermissionDeniedException("You can change only your own password")
+        
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise NotFoundException("User not found")
+
+        if not verify_password(user_update.current_password, user.hashed_password):
+            raise InvalidCredentialsException("Current password is incorrect")
+        
+        if len(user_update.new_password) < 8:
+            raise InvalidCredentialsException("New password must be at least 8 characters long")
+
         user.hashed_password = hash_password(user_update.new_password)  
         db.commit()
         db.refresh(user)
