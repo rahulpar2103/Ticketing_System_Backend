@@ -1,0 +1,16 @@
+# pyrefly: ignore [missing-import]
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    DATABASE_URL: str
+    DB_POOL_SIZE: int
+    DB_MAX_OVERFLOW: int
+    DEBUG: bool
+    SECRET_KEY: str
+    ALGORITHM: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
+    REDIS_URL: str = "redis://localhost:6379"
+
+    model_config = SettingsConfigDict(env_file="app/.env")
+
+settings = Settings()
