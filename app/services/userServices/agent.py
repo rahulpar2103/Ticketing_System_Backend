@@ -31,10 +31,8 @@ class UserServiceAgent:
                         raise NotFoundException("User not found")
                 if current_user.team_id is None or current_user.team_id != target_user.team_id:
                     raise PermissionDeniedException("You can only view your own profile or your teammates.")
-        else:
-            if current_user.id != user_id:
-                raise PermissionDeniedException("You can only view your own profile.")
-
+        elif current_user.role.value == "employee":
+            raise PermissionDeniedException("not authorized to perform this action")
         if target_user:
             return target_user
 
@@ -46,6 +44,8 @@ class UserServiceAgent:
         return user
     
     def update_user_password(self,current_user,user_id: int,user_update:passwordUpdate,db: Session):
+        if current_user.role.value != "agent" and current_user.role.value != "admin":
+            raise PermissionDeniedException("You are not authorized to perform this action")
         if current_user.id != user_id:
             raise PermissionDeniedException("You can change only your own password")
         user = db.query(User).filter(User.id == user_id).first()
