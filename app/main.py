@@ -1,26 +1,46 @@
 # pyrefly: ignore [missing-import]
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+# pyrefly: ignore [missing-import]
+from fastapi.responses import JSONResponse
+# pyrefly: ignore [missing-import]
 from app.routers import mainRouter
+# pyrefly: ignore [missing-import]
 from app.db.database import engine, Base
-from app.core.exceptions import PermissionDeniedException, InvalidCredentialsException, NotFoundException, AlreadyExistsException, UnauthorizedException, SessionException, MissingCredentialException, ValidationException
-from app.models.userModel import User
-from app.models.ticketModel import Ticket
-from app.models.teamModel import Team
+from app.core.exceptions import (
+    PermissionDeniedException,
+    InvalidCredentialsException,
+    NotFoundException,
+    AlreadyExistsException,
+    UnauthorizedException,
+    SessionException,
+    MissingCredentialException,
+    ValidationException,
+)
+from app.models import userModel, ticketModel, teamModel  
 
-Base.metadata.create_all(bind=engine,checkfirst=True)
+Base.metadata.create_all(bind=engine, checkfirst=True)
 
 app = FastAPI()
 
 app.include_router(mainRouter.router)
 
-app.add_exception_handler(PermissionDeniedException,PermissionDeniedException)
-app.add_exception_handler(InvalidCredentialsException,InvalidCredentialsException)
-app.add_exception_handler(NotFoundException,NotFoundException)
-app.add_exception_handler(AlreadyExistsException,AlreadyExistsException)
-app.add_exception_handler(UnauthorizedException,UnauthorizedException)
-app.add_exception_handler(SessionException,SessionException)
-app.add_exception_handler(MissingCredentialException,MissingCredentialException)
-app.add_exception_handler(ValidationException,ValidationException)
+async def _custom_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+
+for exc_class in (
+    PermissionDeniedException,
+    InvalidCredentialsException,
+    NotFoundException,
+    AlreadyExistsException,
+    UnauthorizedException,
+    SessionException,
+    MissingCredentialException,
+    ValidationException,
+):
+    app.add_exception_handler(exc_class, _custom_exception_handler)
 
 
 @app.get("/")
