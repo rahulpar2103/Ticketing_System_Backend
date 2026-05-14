@@ -1,4 +1,6 @@
 # pyrefly: ignore [missing-import]
+from app.schemas.teamSchema import TeamUpdate
+from app.models import teamModel
 from app.dependencies.user import get_current_user
 from app.schemas.userSchema import UserResponse
 from app.dependencies.db import get_db
@@ -28,7 +30,7 @@ async def get_team(id: int, current_user=Depends(get_current_user), db=Depends(g
     return team_service_admin.get_team(id, current_user, db)
 
 @router.put('/update/{id}', response_model=dict)
-async def update_team(id: int, team: TeamCreate, current_user=Depends(get_current_user), db=Depends(get_db)):
+async def update_team(id: int, team: TeamUpdate, current_user=Depends(get_current_user), db=Depends(get_db)):
     return team_service_admin.update_team(id, team, current_user, db)
 
 @router.delete('/delete/{id}', response_model=dict)

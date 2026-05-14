@@ -1,4 +1,6 @@
 # pyrefly: ignore [missing-import]
+from app.core.exceptions import AlreadyExistsException
+from app.models.teamModel import Team
 from app.db.redis import delete_by_prefix
 from app.core.exceptions import NotFoundException
 from app.db.redis import redis_client
@@ -49,17 +51,35 @@ class UserServiceAdmin:
         redis_client.setex(cache_key, 60 * 60, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))
         return user
 
-    def update_user(self, current_user, user_id: int, user: UserUpdate, db: Session)->UserResponse:
+    def update_user(self, current_user, user_id: int, user_update: UserUpdate, db: Session)->UserResponse:
         if current_user.role.value != "admin":
             raise PermissionDeniedException("You do not have permission to update a user")
         
-        user_obj = db.query(User).filter(User.id == user_id).first()  # rename to user_obj
+        user_obj = db.query(User).filter(User.id == user_id).first()  
         if not user_obj:
             raise NotFoundException("User not found")
-        
-        for key, value in user.model_dump(exclude_unset=True).items():
-            setattr(user_obj, key, value)                               
-        
+        if user_update.username:
+            if db.query(User).filter(User.username == user_update.username).first():
+                raise AlreadyExistsException("Username already exists")
+        if user_update.email:
+            if db.query(User).filter(User.email == user_update.email).first():
+                raise AlreadyExistsException("Email already exists")
+        if user_update.team_id:
+            team = db.query(Team).filter(Team.id == user_update.team_id).first()
+            if not team:
+                raise NotFoundException("Team not found")
+
+        if user_update.name:
+            user_obj.name = user_update.name
+        if user_update.username:
+            user_obj.username = user_update.username
+        if user_update.email:
+            user_obj.email = user_update.email
+        if user_update.role:
+            user_obj.role = user_update.role
+        if user_update.team_id:
+            user_obj.team_id = user_update.team_id
+
         db.commit()
         db.refresh(user_obj)
         cache_key = f"user:{user_id}"

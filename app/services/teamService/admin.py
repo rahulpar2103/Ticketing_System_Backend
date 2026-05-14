@@ -1,3 +1,4 @@
+from app.schemas.teamSchema import TeamUpdate
 import json
 from app.db.redis import delete_by_prefix, redis_client
 from app.schemas.userSchema import UserResponse
@@ -68,18 +69,20 @@ class TeamServiceAdmin:
         redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
         return [UserResponse.model_validate(u) for u in members]
 
-    def update_team(self, id: int, team_update: TeamCreate, current_user: User, db: Session):
+    def update_team(self, id: int, team_update: TeamUpdate, current_user: User, db: Session):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("You are not authorized to update a team")
         team = db.query(Team).filter(Team.id == id).first()
         if not team:
             raise NotFoundException(f"Team {id} not found")
-        if team.name != team_update.name:
+        if team_update.name and team.name != team_update.name:
             existing = db.query(Team).filter(Team.name == team_update.name).first()
             if existing:
                 raise AlreadyExistsException(f"Team '{team_update.name}' already exists")
-        team.name = team_update.name
-        team.description = team_update.description
+        if team_update.name:
+            team.name = team_update.name
+        if team_update.description:
+            team.description = team_update.description
         db.commit()
         db.refresh(team)
         redis_client.delete(f"team:{id}")
