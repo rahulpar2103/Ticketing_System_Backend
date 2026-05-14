@@ -77,13 +77,15 @@ class UserServiceAdmin:
             user_obj.email = user_update.email
         if user_update.role:
             user_obj.role = user_update.role
-        if user_update.team_id:
+        if user_update.team_id is not None:
             user_obj.team_id = user_update.team_id
 
         db.commit()
         db.refresh(user_obj)
         cache_key = f"user:{user_id}"
         redis_client.delete(cache_key)
+        delete_by_prefix("all_users:")
+
         return {"message": f"User {user_id} updated successfully"}
 
     def delete_user(self,current_user,user_id: int,db: Session):
