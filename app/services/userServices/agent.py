@@ -1,3 +1,5 @@
+from app.core.exceptions import MissingCredentialException
+from app.db.redis import delete_by_prefix
 from app.core.security import verify_password
 from app.core.exceptions import InvalidCredentialsException
 from app.schemas.userSchema import UserResponse
@@ -51,14 +53,19 @@ class UserServiceAgent:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise NotFoundException("User not found")
+        if not user_update.current_password:
+            raise MissingCredentialException("Current password is required")
         if not verify_password(user_update.current_password, user.hashed_password):
             raise InvalidCredentialsException("Current password is incorrect")
+        if not user_update.new_password:
+            raise MissingCredentialException("New password is required")
         if len(user_update.new_password) < 8:
             raise InvalidCredentialsException("New password must be at least 8 characters long")
         user.hashed_password = hash_password(user_update.new_password)  
         db.commit()
         db.refresh(user)
         redis_client.delete(f"user:{user_id}")
+        delete_by_prefix("all_users")  
         return {"message": f"Password updated successfully for user {user_id}"}
 
 user_service_agent = UserServiceAgent()

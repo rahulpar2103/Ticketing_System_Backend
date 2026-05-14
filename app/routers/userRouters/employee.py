@@ -15,7 +15,7 @@ from app.dependencies.db import get_db
 # pyrefly: ignore [missing-import]
 from fastapi import Depends
 
-router= APIRouter(prefix="/employee",tags=["Employee"])
+router= APIRouter(prefix="/users/employee",tags=["Employee Users"])
 
 @router.get("/get/{user_id}", response_model=UserResponse)
 def get_user(user_id: int,current_user=Depends(get_current_user), db: Session = Depends(get_db)):

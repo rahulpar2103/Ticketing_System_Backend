@@ -10,7 +10,7 @@ from app.dependencies.user import get_current_user
 from app.services.userServices.auth import auth_service
 from app.schemas.userSchema import UserCreate, UserResponse, TokenResponse
 
-router = APIRouter(prefix="/auth", tags=["Auth"])
+router = APIRouter(tags=["Auth"])
 
 
 @router.post("/login", response_model=TokenResponse)

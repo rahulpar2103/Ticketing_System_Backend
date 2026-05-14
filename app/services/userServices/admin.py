@@ -1,4 +1,5 @@
 # pyrefly: ignore [missing-import]
+from app.db.redis import delete_by_prefix
 from app.core.exceptions import NotFoundException
 from app.db.redis import redis_client
 from app.core.exceptions import PermissionDeniedException
@@ -76,6 +77,7 @@ class UserServiceAdmin:
         db.delete(user)
         db.commit()
         redis_client.delete(f"user:{user_id}")
+        delete_by_prefix("all_users")  
         return {"message": f"User {user_id} deleted successfully"}
 
     def update_user_password(self,current_user,user_id: int,user_update:passwordUpdate,db: Session):
@@ -88,6 +90,7 @@ class UserServiceAdmin:
         db.commit()
         db.refresh(user)
         redis_client.delete(f"user:{user_id}")
+        delete_by_prefix("all_users")  
         return {"message": f"Password updated successfully for user {user_id}"}
 
 user_service_admin = UserServiceAdmin()

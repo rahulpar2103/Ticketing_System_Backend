@@ -12,7 +12,7 @@ from app.dependencies.db import get_db
 # pyrefly: ignore [missing-import]
 from app.dependencies.user import get_current_user
 
-router= APIRouter(prefix="/agent",tags=["Agent"])
+router= APIRouter(prefix="/users/agent",tags=["Agent Users"])
 
 @router.get("/get/{user_id}", response_model=UserResponse)
 def get_user(user_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):

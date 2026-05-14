@@ -1,4 +1,5 @@
 # pyrefly: ignore [missing-import]
+from app.core.exceptions import MissingCredentialException
 import json
 from app.core.exceptions import InvalidCredentialsException
 from app.core.security import verify_password
@@ -24,7 +25,7 @@ class UserServiceEmployee:
         cache_key = f"user:{user_id}"
         cache_data = redis_client.get(cache_key)
         if cache_data:
-            return UserResponse.model_validate(cache_data)
+            return UserResponse.model_validate(json.loads(cache_data))
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise NotFoundException("User not found")
@@ -38,10 +39,12 @@ class UserServiceEmployee:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise NotFoundException("User not found")
-
+        if not user_update.current_password:
+            raise MissingCredentialException("Current password is required")
         if not verify_password(user_update.current_password, user.hashed_password):
             raise InvalidCredentialsException("Current password is incorrect")
-        
+        if not user_update.new_password:
+            raise MissingCredentialException("New password is required")
         if len(user_update.new_password) < 8:
             raise InvalidCredentialsException("New password must be at least 8 characters long")
 
