@@ -1,26 +1,25 @@
 # pyrefly: ignore [missing-import]
-from app.services.userServices.employee import user_service_employee
-# pyrefly: ignore [missing-import]
-from fastapi import APIRouter   
-# pyrefly: ignore [missing-import]
-from app.schemas.userSchema import UserResponse
-# pyrefly: ignore [missing-import]
-from app.schemas.userSchema import passwordUpdate
-# pyrefly: ignore [missing-import]
-from app.dependencies.user import get_current_user
+from fastapi import APIRouter, Depends, Request
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
-from app.dependencies.db import get_db
+from app.core.limiter import limiter
 # pyrefly: ignore [missing-import]
-from fastapi import Depends
+from app.services.userServices.employee import user_service_employee
+# pyrefly: ignore [missing-import]
+from app.schemas.userSchema import UserResponse, passwordUpdate
+# pyrefly: ignore [missing-import]
+from app.dependencies.user import get_current_user
+from app.dependencies.db import get_db
 
-router= APIRouter(prefix="/users/employee",tags=["Employee Users"])
+router = APIRouter(prefix="/users/employee", tags=["Employee Users"])
 
 @router.get("/get/{user_id}", response_model=UserResponse)
-def get_user(user_id: int,current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    return user_service_employee.get_user(current_user,user_id,db)
+@limiter.limit("30/minute")
+def get_user(request: Request, user_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    return user_service_employee.get_user(current_user, user_id, db)
 
 @router.patch("/update-password/{user_id}", response_model=dict)
-def update_user_password(user_id: int,user_update:passwordUpdate, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    return user_service_employee.update_user_password(current_user,user_id,user_update,db)
+@limiter.limit("5/minute")
+def update_user_password(request: Request, user_id: int, user_update: passwordUpdate, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    return user_service_employee.update_user_password(current_user, user_id, user_update, db)

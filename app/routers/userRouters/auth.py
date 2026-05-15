@@ -1,32 +1,28 @@
 # pyrefly: ignore [missing-import]
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 # pyrefly: ignore [missing-import]
 from fastapi.security import OAuth2PasswordRequestForm
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
-
+# pyrefly: ignore [missing-import]
+from app.core.limiter import limiter
+# pyrefly: ignore [missing-import]
 from app.dependencies.db import get_db
+# pyrefly: ignore [missing-import]
 from app.dependencies.user import get_current_user
+# pyrefly: ignore [missing-import]
 from app.services.userServices.auth import auth_service
+# pyrefly: ignore [missing-import]
 from app.schemas.userSchema import UserCreate, UserResponse, TokenResponse
 
 router = APIRouter(tags=["Auth"])
 
-
 @router.post("/login", response_model=TokenResponse)
-def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db),
-):
-    """Public endpoint — no token required. Accepts username or email in the username field."""
+@limiter.limit("5/minute")
+def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     return auth_service.login(form_data, db)
 
-
 @router.post("/create", status_code=201, response_model=UserResponse)
-def create_user(
-    user: UserCreate,
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Admin-only — requires a valid Bearer token."""
+@limiter.limit("20/minute")
+def create_user(request: Request, user: UserCreate, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
     return auth_service.create_user(current_user, user, db)

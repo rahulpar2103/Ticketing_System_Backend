@@ -1,38 +1,40 @@
-from app.services.userServices.admin import user_service_admin
 # pyrefly: ignore [missing-import]
-from app.schemas.userSchema import passwordUpdate
-# pyrefly: ignore [missing-import]
-from app.schemas.userSchema import UserResponse,UserUpdate
-# pyrefly: ignore [missing-import]
-from fastapi import APIRouter,Depends
+from fastapi import APIRouter, Depends, Request
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
-from app.dependencies.db import get_db
+from app.core.limiter import limiter
 # pyrefly: ignore [missing-import]
+from app.services.userServices.admin import user_service_admin
+# pyrefly: ignore [missing-import]
+from app.schemas.userSchema import passwordUpdate, UserResponse, UserUpdate
+# pyrefly: ignore [missing-import]
+from app.dependencies.db import get_db
 from app.dependencies.user import get_current_user
 
-router= APIRouter(prefix="/users/admin",tags=["Admin Users"])
+router = APIRouter(prefix="/users/admin", tags=["Admin Users"])
 
 @router.get("/get-all", response_model=list[UserResponse])
-def get_all_users(current_user=Depends(get_current_user),db: Session = Depends(get_db), limit: int=10, offset: int=0):
-    return user_service_admin.get_all_users(current_user,db,limit,offset)
+@limiter.limit("30/minute")
+def get_all_users(request: Request, current_user=Depends(get_current_user), db: Session = Depends(get_db), limit: int=10, offset: int=0):
+    return user_service_admin.get_all_users(current_user, db, limit, offset)
 
 @router.get("/get/{user_id}", response_model=UserResponse)
-def get_user(user_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    return user_service_admin.get_user(current_user,user_id,db)
+@limiter.limit("30/minute")
+def get_user(request: Request, user_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    return user_service_admin.get_user(current_user, user_id, db)
 
 @router.patch("/update/{user_id}", response_model=dict)
-def update_user(user_id: int,user:UserUpdate, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    message = user_service_admin.update_user(current_user,user_id,user,db)
-    return message
+@limiter.limit("20/minute")
+def update_user(request: Request, user_id: int, user: UserUpdate, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    return user_service_admin.update_user(current_user, user_id, user, db)
 
 @router.delete("/{user_id}", response_model=dict)
-def delete_user(user_id: int,current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    message = user_service_admin.delete_user(current_user,user_id,db)
-    return message
+@limiter.limit("20/minute")
+def delete_user(request: Request, user_id: int, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    return user_service_admin.delete_user(current_user, user_id, db)
 
 @router.patch("/update-password/{user_id}", response_model=dict)
-def update_user_password(user_id: int,user_update:passwordUpdate, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
-    message = user_service_admin.update_user_password(current_user,user_id,user_update,db)
-    return message
+@limiter.limit("5/minute")
+def update_user_password(request: Request, user_id: int, user_update: passwordUpdate, current_user=Depends(get_current_user), db: Session = Depends(get_db)):
+    return user_service_admin.update_user_password(current_user, user_id, user_update, db)
