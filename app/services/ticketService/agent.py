@@ -102,10 +102,14 @@ class AgentTicketService:
         cached = redis_client.get(cache_key)
         if cached:
             data = json.loads(cached)
+            team_id_match = (
+                current_user.team_id is not None
+                and data.get("team_id") == current_user.team_id
+            )
             if (
                 data.get("created_by") != current_user.id
                 and data.get("assigned_to") != current_user.id
-                and data.get("team_id") != current_user.team_id
+                and not team_id_match
             ):
                 raise PermissionDeniedException("You do not have access to this ticket")
             return TicketResponse.model_validate(data)
