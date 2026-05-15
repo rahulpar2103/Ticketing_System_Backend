@@ -1,13 +1,40 @@
 import json
+# pyrefly: ignore [missing-import]
+from sqlalchemy.orm import Session, joinedload
 from app.db.redis import delete_by_prefix, redis_client
-from app.models.ticketModel import Priority, TicketStatus, Ticket
+from app.models.ticketModel import Ticket
 from app.models.teamModel import Team
 from app.models.userModel import User
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
-from sqlalchemy.orm import Session
-from app.core.exceptions import (
-    NotFoundException, PermissionDeniedException, ValidationException
-)
+from app.core.exceptions import NotFoundException, PermissionDeniedException
+
+
+def _build_response(ticket: Ticket) -> TicketResponse:
+    return TicketResponse(
+        id=ticket.id,
+        title=ticket.title,
+        description=ticket.description,
+        status=ticket.status,
+        priority=ticket.priority,
+        created_by=ticket.created_by,
+        assigned_to=ticket.assigned_to,
+        assigned_to_username=ticket.assigned_user.username if ticket.assigned_user else None,
+        team_id=ticket.team_id,
+        team_name=ticket.team.name if ticket.team else None,
+    )
+
+def _load_ticket(db: Session, ticket_id: int):
+    """Single ticket query with relationships eager-loaded."""
+    return (
+        db.query(Ticket)
+        .options(joinedload(Ticket.assigned_user), joinedload(Ticket.team))
+        .filter(Ticket.id == ticket_id)
+        .first()
+    )
+
+def _load_tickets(query):
+    """Apply eager loading to any ticket query."""
+    return query.options(joinedload(Ticket.assigned_user), joinedload(Ticket.team))
 
 
 class AdminTicketService:
@@ -37,10 +64,11 @@ class AdminTicketService:
         )
         db.add(new_ticket)
         db.commit()
-        db.refresh(new_ticket)
 
+        # reload with relationships
+        new_ticket = _load_ticket(db, new_ticket.id)
         delete_by_prefix("tickets:all:")
-        return TicketResponse.model_validate(new_ticket)
+        return _build_response(new_ticket)
 
     @staticmethod
     def get_all_tickets(db: Session, current_user: User, limit: int, offset: int):
@@ -50,10 +78,10 @@ class AdminTicketService:
         cached = redis_client.get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = db.query(Ticket).limit(limit).offset(offset).all()
-        serialized = [TicketResponse.model_validate(t).model_dump(mode="json") for t in tickets]
-        redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
-        return [TicketResponse.model_validate(t) for t in tickets]
+        tickets = _load_tickets(db.query(Ticket)).limit(limit).offset(offset).all()
+        responses = [_build_response(t) for t in tickets]
+        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        return responses
 
     @staticmethod
     def get_ticket(id: int, db: Session, current_user: User):
@@ -63,11 +91,12 @@ class AdminTicketService:
         cached = redis_client.get(cache_key)
         if cached:
             return TicketResponse.model_validate(json.loads(cached))
-        ticket = db.query(Ticket).filter(Ticket.id == id).first()
+        ticket = _load_ticket(db, id)
         if not ticket:
             raise NotFoundException(f"Ticket {id} not found")
-        redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(TicketResponse.model_validate(ticket).model_dump(mode="json")))
-        return TicketResponse.model_validate(ticket)
+        response = _build_response(ticket)
+        redis_client.setex(cache_key, 60 * 60, json.dumps(response.model_dump(mode="json")))
+        return response
 
     @staticmethod
     def get_assigned_tickets(db: Session, current_user: User, limit: int, offset: int):
@@ -77,10 +106,12 @@ class AdminTicketService:
         cached = redis_client.get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = db.query(Ticket).filter(Ticket.assigned_to == current_user.id).limit(limit).offset(offset).all()
-        serialized = [TicketResponse.model_validate(t).model_dump(mode="json") for t in tickets]
-        redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
-        return [TicketResponse.model_validate(t) for t in tickets]
+        tickets = _load_tickets(
+            db.query(Ticket).filter(Ticket.assigned_to == current_user.id)
+        ).limit(limit).offset(offset).all()
+        responses = [_build_response(t) for t in tickets]
+        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        return responses
 
     @staticmethod
     def get_created_tickets(db: Session, current_user: User, limit: int, offset: int):
@@ -90,10 +121,12 @@ class AdminTicketService:
         cached = redis_client.get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = db.query(Ticket).filter(Ticket.created_by == current_user.id).limit(limit).offset(offset).all()
-        serialized = [TicketResponse.model_validate(t).model_dump(mode="json") for t in tickets]
-        redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
-        return [TicketResponse.model_validate(t) for t in tickets]
+        tickets = _load_tickets(
+            db.query(Ticket).filter(Ticket.created_by == current_user.id)
+        ).limit(limit).offset(offset).all()
+        responses = [_build_response(t) for t in tickets]
+        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        return responses
 
     @staticmethod
     def get_team_tickets(team_id: int, db: Session, current_user: User, limit: int, offset: int):
@@ -106,10 +139,12 @@ class AdminTicketService:
         cached = redis_client.get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = db.query(Ticket).filter(Ticket.team_id == team_id).limit(limit).offset(offset).all()
-        serialized = [TicketResponse.model_validate(t).model_dump(mode="json") for t in tickets]
-        redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
-        return [TicketResponse.model_validate(t) for t in tickets]
+        tickets = _load_tickets(
+            db.query(Ticket).filter(Ticket.team_id == team_id)
+        ).limit(limit).offset(offset).all()
+        responses = [_build_response(t) for t in tickets]
+        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        return responses
 
     @staticmethod
     def get_tickets_assigned_to_user(user_id: int, db: Session, current_user: User, limit: int, offset: int):
@@ -119,10 +154,12 @@ class AdminTicketService:
         cached = redis_client.get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = db.query(Ticket).filter(Ticket.assigned_to == user_id).limit(limit).offset(offset).all()
-        serialized = [TicketResponse.model_validate(t).model_dump(mode="json") for t in tickets]
-        redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
-        return [TicketResponse.model_validate(t) for t in tickets]
+        tickets = _load_tickets(
+            db.query(Ticket).filter(Ticket.assigned_to == user_id)
+        ).limit(limit).offset(offset).all()
+        responses = [_build_response(t) for t in tickets]
+        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        return responses
 
     @staticmethod
     def update_ticket(id: int, ticket_update: TicketUpdate, db: Session, current_user: User):
@@ -155,17 +192,17 @@ class AdminTicketService:
                 if not team:
                     raise NotFoundException(f"Team {ticket_update.team_id} not found")
                 ticket.team_id = ticket_update.team_id
-                ticket.assigned_to = None  # transferring team clears assignee
+                ticket.assigned_to = None
 
         db.commit()
-        db.refresh(ticket)
 
+        ticket = _load_ticket(db, id)
         redis_client.delete(f"ticket:{id}")
         delete_by_prefix("tickets:all:")
         delete_by_prefix("tickets:assigned:")
         delete_by_prefix("tickets:team:")
 
-        return TicketResponse.model_validate(ticket)
+        return _build_response(ticket)
 
 
 ticket_service_admin = AdminTicketService()

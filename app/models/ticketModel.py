@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, Enum, DateTime, ForeignKey
+# pyrefly: ignore [missing-import]
+from sqlalchemy import Column, Integer, String, Enum, DateTime, ForeignKey      
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.db.database import Base
@@ -33,6 +35,7 @@ class Ticket(Base):
     # Relationships
     assigned_user = relationship("User", back_populates="assigned_tickets", foreign_keys=[assigned_to])
     created_by_user = relationship("User", back_populates="created_tickets", foreign_keys=[created_by])
+    team = relationship("Team", foreign_keys=[team_id])
 
     def __repr__(self):
         return f"<Ticket(id={self.id}, title='{self.title}', status='{self.status}')>"
