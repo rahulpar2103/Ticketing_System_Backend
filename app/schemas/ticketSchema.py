@@ -1,6 +1,4 @@
-# pyrefly: ignore [missing-import]
 from pydantic import BaseModel
-# pyrefly: ignore [missing-import]
 from app.models.ticketModel import TicketStatus, Priority
 
 
@@ -9,14 +7,16 @@ class TicketCreate(BaseModel):
     description: str
     priority: Priority
     assigned_to: int | None = None
+    team_id: int | None = None
 
 class TicketResponse(BaseModel):
     id: int
     title: str
     description: str
-    status: TicketStatus = TicketStatus.open
+    status: TicketStatus
     created_by: int
     assigned_to: int | None = None
+    team_id: int | None = None
     priority: Priority
 
     class Config:
@@ -27,4 +27,5 @@ class TicketUpdate(BaseModel):
     description: str | None = None
     status: TicketStatus | None = None
     assigned_to: int | None = None
+    team_id: int | None = None
     priority: Priority | None = None

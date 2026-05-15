@@ -1,10 +1,7 @@
-# pyrefly: ignore [missing-import]
 from sqlalchemy import Column, Integer, String, Enum, DateTime, ForeignKey
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.db.database import Base
-# pyrefly: ignore [missing-import]
 import enum
 
 class TicketStatus(enum.Enum):
@@ -29,6 +26,7 @@ class Ticket(Base):
     status = Column(Enum(TicketStatus), nullable=False, default=TicketStatus.open)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True)
+    team_id = Column(Integer, ForeignKey("teams.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
