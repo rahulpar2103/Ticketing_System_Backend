@@ -10,9 +10,8 @@ from app.models.ticketModel import TicketStatus, Priority
 class TicketCreate(BaseModel):
     title: str
     description: str
-    created_by: int
-    assigned_to: int | None = None
     priority: Priority
+    assigned_to: int | None = None
 
 class TicketResponse(BaseModel):
     id: int
