@@ -115,8 +115,7 @@ class UserServiceAdmin:
         db.commit()
         db.refresh(user)
         redis_client.delete(f"user:{user_id}")
-        delete_by_prefix("all_users")  
-        delete_by_prefix("tickets:")
+        delete_by_prefix("all_users:")  
         return {"message": f"Password updated successfully for user {user_id}"}
 
 user_service_admin = UserServiceAdmin()

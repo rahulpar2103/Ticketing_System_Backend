@@ -9,7 +9,7 @@ from app.models.teamModel import Team
 from app.models.userModel import User
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
 from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
-from app.services.ticketService.admin import _build_response, _load_ticket, _load_tickets
+from app.services.ticketService.utils import _build_response, _load_ticket, _load_tickets
 
 # Valid status transitions for agents (and admins)
 VALID_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
