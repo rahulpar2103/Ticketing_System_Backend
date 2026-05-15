@@ -201,6 +201,7 @@ class AdminTicketService:
         delete_by_prefix("tickets:all:")
         delete_by_prefix("tickets:assigned:")
         delete_by_prefix("tickets:team:")
+        delete_by_prefix("tickets:created:")
 
         return _build_response(ticket)
 

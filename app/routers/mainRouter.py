@@ -7,6 +7,8 @@ from app.routers.userRouters.employee import router as user_employee
 from app.routers.teamRouters.admin import router as team_admin
 from app.routers.teamRouters.agent import router as team_agent
 from app.routers.ticketRouters.admin import router as ticket_admin
+from app.routers.ticketRouters.agent import router as ticket_agent
+from app.routers.ticketRouters.employee import router as ticket_employee
 
 router = APIRouter(tags=["Main"])
 
@@ -17,3 +19,5 @@ router.include_router(user_employee)
 router.include_router(team_admin)
 router.include_router(team_agent)
 router.include_router(ticket_admin)
+router.include_router(ticket_agent)
+router.include_router(ticket_employee)
