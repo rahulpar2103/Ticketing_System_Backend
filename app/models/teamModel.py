@@ -18,3 +18,6 @@ class Team(Base):
     
     #Relationships
     users = relationship("User", back_populates="team")
+
+    def __repr__(self):
+        return f"<Team(id={self.id}, name='{self.name}', description='{self.description}', is_active={self.is_active})>"

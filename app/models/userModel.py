@@ -29,7 +29,9 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     
     # Relationships
-    team = relationship("Team", back_populates="users")    
+    team = relationship("Team", back_populates="users")
+    assigned_tickets = relationship("Ticket", back_populates="assigned_user", foreign_keys="Ticket.assigned_to")
+    created_tickets = relationship("Ticket", back_populates="created_by_user", foreign_keys="Ticket.created_by")
     
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', role='{self.role}')>"

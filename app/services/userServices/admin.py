@@ -78,7 +78,10 @@ class UserServiceAdmin:
         if user_update.role:
             user_obj.role = user_update.role
         if user_update.team_id is not None:
-            user_obj.team_id = user_update.team_id
+            if user_update.team_id==0:
+                user_obj.team_id = None
+            else:
+                user_obj.team_id = user_update.team_id
 
         db.commit()
         db.refresh(user_obj)
