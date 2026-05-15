@@ -1,8 +1,5 @@
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel
-from datetime import datetime
-# pyrefly: ignore [missing-import]
-from .userSchema import UserBase
 # pyrefly: ignore [missing-import]
 from app.models.ticketModel import TicketStatus, Priority
 

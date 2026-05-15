@@ -4,7 +4,9 @@ from app.models.ticketModel import TicketStatus
 # pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends
 # pyrefly: ignore [missing-import]
-from app.dependencies.user import get_current_user, get_db
+from app.dependencies.user import get_current_user
+# pyrefly: ignore [missing-import]
+from app.dependencies.db import get_db
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
@@ -26,7 +28,7 @@ def create_ticket(ticket: TicketCreate, db: Session = Depends(get_db), current_u
 def get_all_tickets(db: Session = Depends(get_db), current_user: User = Depends(get_current_user), limit: int=10, offset: int=0):
     return ticket_service_admin.get_all_tickets(db, current_user, limit, offset)
 
-@router.get("/get/{id}")
+@router.get("/get/{id}", response_model=TicketResponse)
 def get_ticket(id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return ticket_service_admin.get_ticket(id, db, current_user)
 
@@ -39,10 +41,15 @@ def get_created_tickets(db: Session = Depends(get_db), current_user: User = Depe
     return ticket_service_admin.get_created_tickets(db, current_user, limit, offset)
 
 @router.get("/team-tickets/{team_id}")
-def get_team_tickets(team_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return ticket_service_admin.get_team_tickets(team_id, db, current_user)
+def get_team_tickets(team_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user), limit: int=10, offset: int=0):
+    return ticket_service_admin.get_team_tickets(team_id, db, current_user, limit, offset)
 
 @router.patch('/{id}/update')
-def update_ticket(id: int, ticket: TicketUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def update_ticket(id: int, ticket: TicketUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db), limit: int=10, offset: int=0):
     return ticket_service_admin.update_ticket(id, ticket, db, current_user)
+
+@router.get("/tickets-assigned-to-user/{user_id}")
+def get_tickets_assigned_to_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user), limit: int=10, offset: int=0):
+    return ticket_service_admin.get_tickets_assigned_to_user(user_id, db, current_user, limit, offset)
+
 
