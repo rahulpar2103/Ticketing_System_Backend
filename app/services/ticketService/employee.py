@@ -1,5 +1,7 @@
 import json
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
+# pyrefly: ignore [missing-import]
 from sqlalchemy import or_
 
 from app.db.redis import redis_client, delete_by_prefix
@@ -173,10 +175,7 @@ class EmployeeTicketService:
         ticket = _load_ticket(db, id)
 
         redis_client.delete(f"ticket:{id}")
-        delete_by_prefix("tickets:all:")
-        delete_by_prefix(f"tickets:employee:{current_user.id}:")
-        delete_by_prefix(f"tickets:created:{current_user.id}:")
-
+        delete_by_prefix("tickets:")
         return _build_response(ticket)
 
 

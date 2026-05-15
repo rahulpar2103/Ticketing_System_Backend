@@ -198,11 +198,7 @@ class AdminTicketService:
 
         ticket = _load_ticket(db, id)
         redis_client.delete(f"ticket:{id}")
-        delete_by_prefix("tickets:all:")
-        delete_by_prefix("tickets:assigned:")
-        delete_by_prefix("tickets:team:")
-        delete_by_prefix("tickets:created:")
-
+        delete_by_prefix("tickets:")
         return _build_response(ticket)
 
 

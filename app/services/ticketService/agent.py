@@ -3,7 +3,6 @@ import json
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from sqlalchemy import or_
-
 from app.db.redis import redis_client, delete_by_prefix
 from app.models.ticketModel import Ticket, TicketStatus
 from app.models.teamModel import Team
@@ -230,11 +229,7 @@ class AgentTicketService:
         ticket = _load_ticket(db, id)
 
         redis_client.delete(f"ticket:{id}")
-        delete_by_prefix("tickets:all:")
-        delete_by_prefix("tickets:assigned:")
-        delete_by_prefix("tickets:team:")
-        delete_by_prefix(f"tickets:agent:{current_user.id}:")
-
+        delete_by_prefix("tickets:")
         return _build_response(ticket)
 
 
