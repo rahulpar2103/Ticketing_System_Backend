@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
-from app.database.database import get_db
+from app.db.database import get_db
 # pyrefly: ignore [missing-import]
 from app.models.commentModel import Comment
 # pyrefly: ignore [missing-import]
@@ -12,7 +12,6 @@ from app.schemas.commentSchemas import CommentCreate, CommentResponse
 from app.services.auth_services import get_current_user
 # pyrefly: ignore [missing-import]
 from app.models.userModel import User
-# pyrefly: ignore [missing-import]
 
 
 router = APIRouter(prefix="/comments/admin", tags=["Admin Comment"])
