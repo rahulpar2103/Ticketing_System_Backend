@@ -166,7 +166,6 @@ class AdminTicketService:
         if ticket_update.priority is not None:
             ticket.priority = ticket_update.priority
 
-        # Normalize sentinels early
         unassign_user = ticket_update.assigned_to == -1
         unassign_team = ticket_update.team_id == 0
 
@@ -175,7 +174,6 @@ class AdminTicketService:
         if unassign_team:
             ticket_update.team_id = None
 
-        # Resolve the objects we need (avoid duplicate queries)
         new_assignee = None
         if ticket_update.assigned_to is not None:
             new_assignee = db.query(User).filter(User.id == ticket_update.assigned_to).first()
@@ -208,10 +206,9 @@ class AdminTicketService:
                     ticket.assigned_to = None
 
         elif new_assignee is not None:
-            # Only assignee changed: auto-fill team from user, or validate against existing team
             ticket.assigned_to = new_assignee.id
             if ticket.team_id is None:
-                ticket.team_id = new_assignee.team_id  # may also be None, that's fine
+                ticket.team_id = new_assignee.team_id  
             elif new_assignee.team_id != ticket.team_id:
                 raise ValidationException(
                     f"User {new_assignee.username} does not belong to the ticket's current team. "

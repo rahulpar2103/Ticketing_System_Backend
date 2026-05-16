@@ -102,7 +102,7 @@ class UserServiceAdmin:
         db.delete(user)
         db.commit()
         redis_client.delete(f"user:{user_id}")
-        delete_by_prefix("all_users")  
+        delete_by_prefix("all_users:")  
         return {"message": f"User {user_id} deleted successfully"}
 
     def update_user_password(self,current_user,user_id: int,user_update:passwordUpdate,db: Session):

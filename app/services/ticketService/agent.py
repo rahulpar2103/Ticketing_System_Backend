@@ -60,16 +60,23 @@ class AgentTicketService:
             if not assigned_user:
                 raise NotFoundException(f"User {ticket.assigned_to} not found")
 
+            # Mirror update_ticket: assignee must belong to the agent's own team
+            if assigned_user.team_id != current_user.team_id:
+                raise PermissionDeniedException("You can only assign tickets to members of your own team")
+
         if ticket.team_id is not None:
             team = db.query(Team).filter(Team.id == ticket.team_id).first()
             if not team:
                 raise NotFoundException(f"Team {ticket.team_id} not found")
+
+            # Mirror update_ticket: supplied team_id must match the assignee's team
             if assigned_user is not None and assigned_user.team_id != ticket.team_id:
                 raise ValidationException(
                     f"User {assigned_user.username} does not belong to team {ticket.team_id}"
                 )
         elif assigned_user is not None:
-            ticket.team_id = assigned_user.team_id  # auto-fill; stays None if user has no team
+            # Auto-fill team_id from the assignee (stays None if the user has no team)
+            ticket.team_id = assigned_user.team_id
 
         new_ticket = Ticket(
             title=ticket.title,

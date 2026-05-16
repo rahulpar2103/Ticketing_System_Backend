@@ -36,7 +36,7 @@ class Ticket(Base):
     assigned_user = relationship("User", back_populates="assigned_tickets", foreign_keys=[assigned_to])
     created_by_user = relationship("User", back_populates="created_tickets", foreign_keys=[created_by])
     team = relationship("Team", foreign_keys=[team_id])
-    comments = relationship("Comment", back_populates="ticket")
+    comments = relationship("Comment", back_populates="ticket", passive_deletes=True)
 
     def __repr__(self):
         return f"<Ticket(id={self.id}, title='{self.title}', status='{self.status}')>"
