@@ -30,7 +30,8 @@ class UserServiceEmployee:
         if not user:
             raise NotFoundException("User not found")
         redis_client.setex(cache_key, 3600, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))
-        return user
+        return UserResponse.model_validate(user)
+
     
     def update_user_password(self,current_user,user_id: int,user_update:passwordUpdate,db: Session):
         if current_user.role.value != "employee"or current_user.id != user_id :

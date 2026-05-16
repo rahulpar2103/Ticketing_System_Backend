@@ -1,8 +1,8 @@
 # pyrefly: ignore [missing-import]
-from sqlalchemy import Column, Integer, String, Enum, DateTime, ForeignKey      
+from sqlalchemy import Column, Integer, String, Enum, DateTime, ForeignKey, func      
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
+# pyrefly: ignore [missing-import]
 from app.db.database import Base
 import enum
 
@@ -29,8 +29,8 @@ class Ticket(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True, default=None)
     team_id = Column(Integer, ForeignKey("teams.id", ondelete="SET NULL"), nullable=True, default=None)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships
     assigned_user = relationship("User", back_populates="assigned_tickets", foreign_keys=[assigned_to])

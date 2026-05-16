@@ -7,7 +7,7 @@ from app.models.ticketModel import Ticket
 from app.models.teamModel import Team
 from app.models.userModel import User
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
-from app.core.exceptions import NotFoundException, PermissionDeniedException
+from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
 from app.services.ticketService.utils import _build_response, _load_ticket, _load_tickets
 
 
@@ -36,7 +36,7 @@ class AdminTicketService:
                 raise NotFoundException(f"Team {ticket.team_id} not found")
 
             if assigned_user is not None and assigned_user.team_id != ticket.team_id:
-                raise PermissionDeniedException(
+                raise ValidationException(
                     f"User {assigned_user.username} does not belong to team {ticket.team_id}"
                 )
         elif assigned_user is not None:
@@ -54,7 +54,7 @@ class AdminTicketService:
         db.commit()
 
         new_ticket = _load_ticket(db, new_ticket.id)
-        delete_by_prefix("tickets:all:")
+        delete_by_prefix("tickets:")
         return _build_response(new_ticket)
     
     @staticmethod
@@ -192,7 +192,7 @@ class AdminTicketService:
 
         elif new_team is not None and new_assignee is not None:
             if new_assignee.team_id != new_team.id:
-                raise PermissionDeniedException(
+                raise ValidationException(
                     f"User {new_assignee.username} does not belong to team {new_team.id}"
                 )
             ticket.team_id = new_team.id
@@ -216,7 +216,6 @@ class AdminTicketService:
                 )
 
         if unassign_user and not unassign_team:
-            # Explicit user removal without touching team: just clear the assignee
             ticket.assigned_to = None
 
         db.commit()

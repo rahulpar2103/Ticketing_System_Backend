@@ -89,7 +89,7 @@ class AgentTicketService:
         db.add(new_ticket)
         db.commit()
         new_ticket = _load_ticket(db, new_ticket.id)
-        delete_by_prefix("tickets:all:")
+        delete_by_prefix("tickets:")
         return _build_response(new_ticket)
 
     # ------------------------------------------------------------------ #

@@ -49,7 +49,8 @@ class UserServiceAdmin:
             raise NotFoundException("User not found")
 
         redis_client.setex(cache_key, 60 * 60, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))
-        return user
+        return UserResponse.model_validate(user)
+
 
     def update_user(self, current_user, user_id: int, user_update: UserUpdate, db: Session)->UserResponse:
         if current_user.role.value != "admin":

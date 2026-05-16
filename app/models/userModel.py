@@ -1,9 +1,7 @@
 # pyrefly: ignore [missing-import]
-from sqlalchemy import Column, Integer, String, Boolean, Enum, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, Enum, DateTime, ForeignKey, func
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
-# pyrefly: ignore [missing-import]
-from datetime import datetime, timezone
 # pyrefly: ignore [missing-import]
 from app.db.database import Base
 # pyrefly: ignore [missing-import]
@@ -24,8 +22,8 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role= Column(Enum(UserRole), nullable=False)
     team_id = Column(Integer, ForeignKey("teams.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, default=datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_active = Column(Boolean, default=True)
     
     # Relationships

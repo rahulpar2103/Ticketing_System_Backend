@@ -103,6 +103,8 @@ class TeamServiceAdmin:
         redis_client.delete(f"team:{id}")
         delete_by_prefix("teams:")
         delete_by_prefix(f"team_members:{id}:")
+        delete_by_prefix("tickets:")
+        delete_by_prefix("all_users:")
         return {"message": f"Team {id} deleted successfully"}
 
 

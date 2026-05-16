@@ -23,9 +23,7 @@ class UserServiceAgent:
         cached_data = redis_client.get(cache_key)
         target_user = UserResponse.model_validate(json.loads(cached_data)) if cached_data else None
 
-        if current_user.role.value == "admin":
-            pass
-        elif current_user.role.value == "agent":
+        if current_user.role.value == "agent":
             if current_user.id != user_id:
                 if target_user is None:
                     target_user = db.query(User).filter(User.id == user_id).first()
@@ -33,8 +31,8 @@ class UserServiceAgent:
                         raise NotFoundException("User not found")
                 if current_user.team_id is None or current_user.team_id != target_user.team_id:
                     raise PermissionDeniedException("You can only view your own profile or your teammates.")
-        elif current_user.role.value == "employee":
-            raise PermissionDeniedException("not authorized to perform this action")
+        elif current_user.role.value == "employee" or current_user.role.value=="admin":
+            raise PermissionDeniedException("Not authorized to access this endpoint.")
         if target_user:
             return target_user
 
@@ -43,7 +41,8 @@ class UserServiceAgent:
             raise NotFoundException("User not found")
 
         redis_client.setex(cache_key, 60 * 60, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))
-        return user
+        return UserResponse.model_validate(user)
+
     
     def update_user_password(self,current_user,user_id: int,user_update:passwordUpdate,db: Session):
         if current_user.role.value != "agent" and current_user.role.value != "admin":
