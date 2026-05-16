@@ -32,6 +32,7 @@ class User(Base):
     team = relationship("Team", back_populates="users")
     assigned_tickets = relationship("Ticket", back_populates="assigned_user", foreign_keys="Ticket.assigned_to")
     created_tickets = relationship("Ticket", back_populates="created_by_user", foreign_keys="Ticket.created_by")
+    comments = relationship("Comment", back_populates="user")
     
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', role='{self.role}')>"

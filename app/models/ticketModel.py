@@ -27,8 +27,8 @@ class Ticket(Base):
     priority = Column(Enum(Priority), nullable=False, default=Priority.low)
     status = Column(Enum(TicketStatus), nullable=False, default=TicketStatus.open)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
-    assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True)
-    team_id = Column(Integer, ForeignKey("teams.id", ondelete="SET NULL"), nullable=True)
+    assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True, default=None)
+    team_id = Column(Integer, ForeignKey("teams.id", ondelete="SET NULL"), nullable=True, default=None)
     created_at = Column(DateTime, default=datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
@@ -36,6 +36,7 @@ class Ticket(Base):
     assigned_user = relationship("User", back_populates="assigned_tickets", foreign_keys=[assigned_to])
     created_by_user = relationship("User", back_populates="created_tickets", foreign_keys=[created_by])
     team = relationship("Team", foreign_keys=[team_id])
+    comments = relationship("Comment", back_populates="ticket")
 
     def __repr__(self):
         return f"<Ticket(id={self.id}, title='{self.title}', status='{self.status}')>"

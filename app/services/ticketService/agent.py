@@ -48,13 +48,28 @@ class AgentTicketService:
     def create_ticket(ticket: TicketCreate, db: Session, current_user: User):
         AgentTicketService._require_agent(current_user)
 
+        # Normalize sentinels
+        if ticket.assigned_to == -1:
+            ticket.assigned_to = None
+        if ticket.team_id == 0:
+            ticket.team_id = None
+
+        assigned_user = None
         if ticket.assigned_to is not None:
-            if not db.query(User).filter(User.id == ticket.assigned_to).first():
+            assigned_user = db.query(User).filter(User.id == ticket.assigned_to).first()
+            if not assigned_user:
                 raise NotFoundException(f"User {ticket.assigned_to} not found")
 
         if ticket.team_id is not None:
-            if not db.query(Team).filter(Team.id == ticket.team_id).first():
+            team = db.query(Team).filter(Team.id == ticket.team_id).first()
+            if not team:
                 raise NotFoundException(f"Team {ticket.team_id} not found")
+            if assigned_user is not None and assigned_user.team_id != ticket.team_id:
+                raise ValidationException(
+                    f"User {assigned_user.username} does not belong to team {ticket.team_id}"
+                )
+        elif assigned_user is not None:
+            ticket.team_id = assigned_user.team_id  # auto-fill; stays None if user has no team
 
         new_ticket = Ticket(
             title=ticket.title,
@@ -185,10 +200,17 @@ class AgentTicketService:
             raise PermissionDeniedException("You do not have access to this ticket")
 
         is_team_ticket = AgentTicketService._is_team_ticket(ticket, current_user)
+        is_creator = ticket.created_by == current_user.id
+        is_assignee = ticket.assigned_to == current_user.id
 
-        # title / description — agents cannot edit
+        # title / description — own created tickets only
         if ticket_update.title is not None or ticket_update.description is not None:
-            raise PermissionDeniedException("Agents cannot edit ticket title or description")
+            if not is_creator:
+                raise PermissionDeniedException("You can only edit title or description on tickets you created")
+            if ticket_update.title is not None:
+                ticket.title = ticket_update.title
+            if ticket_update.description is not None:
+                ticket.description = ticket_update.description
 
         # priority — team tickets only
         if ticket_update.priority is not None:
@@ -196,10 +218,10 @@ class AgentTicketService:
                 raise PermissionDeniedException("You can only change priority on your team's tickets")
             ticket.priority = ticket_update.priority
 
-        # status — state machine enforced, team tickets only
+        # status — any accessible ticket, state machine enforced
         if ticket_update.status is not None:
-            if not is_team_ticket:
-                raise PermissionDeniedException("You can only change status on your team's tickets")
+            if not (is_creator or is_assignee or is_team_ticket):
+                raise PermissionDeniedException("You do not have permission to change the status of this ticket")
             allowed = VALID_TRANSITIONS.get(ticket.status, set())
             if ticket_update.status not in allowed:
                 raise ValidationException(
@@ -208,8 +230,12 @@ class AgentTicketService:
                 )
             ticket.status = ticket_update.status
 
-        # assigned_to — team members only
-        if ticket_update.assigned_to is not None:
+        # assigned_to — team tickets only; -1 sentinel to unassign
+        if ticket_update.assigned_to == -1:
+            if not is_team_ticket:
+                raise PermissionDeniedException("You can only reassign your team's tickets")
+            ticket.assigned_to = None
+        elif ticket_update.assigned_to is not None:
             if not is_team_ticket:
                 raise PermissionDeniedException("You can only reassign your team's tickets")
             target = db.query(User).filter(User.id == ticket_update.assigned_to).first()
@@ -219,7 +245,7 @@ class AgentTicketService:
                 raise PermissionDeniedException("You can only assign tickets to members of your own team")
             ticket.assigned_to = ticket_update.assigned_to
 
-        # team_id — transfer allowed but cannot unassign (team_id=0); clears assignee on transfer
+        # team_id — transfer allowed, unassign (0) not allowed; clears assignee on transfer
         if ticket_update.team_id is not None:
             if ticket_update.team_id == 0:
                 raise PermissionDeniedException("Agents cannot unassign a ticket from a team")
@@ -227,7 +253,7 @@ class AgentTicketService:
             if not team:
                 raise NotFoundException(f"Team {ticket_update.team_id} not found")
             ticket.team_id = ticket_update.team_id
-            ticket.assigned_to = None  # clear assignee when transferring teams
+            ticket.assigned_to = None
 
         db.commit()
         ticket = _load_ticket(db, id)
@@ -235,6 +261,5 @@ class AgentTicketService:
         redis_client.delete(f"ticket:{id}")
         delete_by_prefix("tickets:")
         return _build_response(ticket)
-
 
 ticket_service_agent = AgentTicketService()

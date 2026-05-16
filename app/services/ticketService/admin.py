@@ -1,3 +1,4 @@
+from app.core.exceptions import ValidationException
 import json
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
@@ -17,15 +18,29 @@ class AdminTicketService:
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
 
+        # Normalize sentinel values
+        if ticket.assigned_to == -1:
+            ticket.assigned_to = None
+        if ticket.team_id == 0:
+            ticket.team_id = None
+
+        assigned_user = None
         if ticket.assigned_to is not None:
-            user = db.query(User).filter(User.id == ticket.assigned_to).first()
-            if not user:
+            assigned_user = db.query(User).filter(User.id == ticket.assigned_to).first()
+            if not assigned_user:
                 raise NotFoundException(f"User {ticket.assigned_to} not found")
 
         if ticket.team_id is not None:
             team = db.query(Team).filter(Team.id == ticket.team_id).first()
             if not team:
                 raise NotFoundException(f"Team {ticket.team_id} not found")
+
+            if assigned_user is not None and assigned_user.team_id != ticket.team_id:
+                raise PermissionDeniedException(
+                    f"User {assigned_user.username} does not belong to team {ticket.team_id}"
+                )
+        elif assigned_user is not None:
+            ticket.team_id = assigned_user.team_id  
 
         new_ticket = Ticket(
             title=ticket.title,
@@ -38,11 +53,10 @@ class AdminTicketService:
         db.add(new_ticket)
         db.commit()
 
-        # reload with relationships
         new_ticket = _load_ticket(db, new_ticket.id)
         delete_by_prefix("tickets:all:")
         return _build_response(new_ticket)
-
+    
     @staticmethod
     def get_all_tickets(db: Session, current_user: User, limit: int, offset: int):
         if current_user.role.value != "admin":
@@ -138,6 +152,7 @@ class AdminTicketService:
     def update_ticket(id: int, ticket_update: TicketUpdate, db: Session, current_user: User):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
+
         ticket = db.query(Ticket).filter(Ticket.id == id).first()
         if not ticket:
             raise NotFoundException(f"Ticket {id} not found")
@@ -151,21 +166,61 @@ class AdminTicketService:
         if ticket_update.priority is not None:
             ticket.priority = ticket_update.priority
 
-        if ticket_update.assigned_to is not None:
-            user = db.query(User).filter(User.id == ticket_update.assigned_to).first()
-            if not user:
-                raise NotFoundException(f"User {ticket_update.assigned_to} not found")
-            ticket.assigned_to = ticket_update.assigned_to
+        # Normalize sentinels early
+        unassign_user = ticket_update.assigned_to == -1
+        unassign_team = ticket_update.team_id == 0
 
+        if unassign_user:
+            ticket_update.assigned_to = None
+        if unassign_team:
+            ticket_update.team_id = None
+
+        # Resolve the objects we need (avoid duplicate queries)
+        new_assignee = None
+        if ticket_update.assigned_to is not None:
+            new_assignee = db.query(User).filter(User.id == ticket_update.assigned_to).first()
+            if not new_assignee:
+                raise NotFoundException(f"User {ticket_update.assigned_to} not found")
+
+        new_team = None
         if ticket_update.team_id is not None:
-            if ticket_update.team_id == 0:
-                ticket.team_id = None
-            else:
-                team = db.query(Team).filter(Team.id == ticket_update.team_id).first()
-                if not team:
-                    raise NotFoundException(f"Team {ticket_update.team_id} not found")
-                ticket.team_id = ticket_update.team_id
-                ticket.assigned_to = None
+            new_team = db.query(Team).filter(Team.id == ticket_update.team_id).first()
+            if not new_team:
+                raise NotFoundException(f"Team {ticket_update.team_id} not found")
+
+        if unassign_team:
+            ticket.team_id = None
+            ticket.assigned_to = None
+
+        elif new_team is not None and new_assignee is not None:
+            if new_assignee.team_id != new_team.id:
+                raise PermissionDeniedException(
+                    f"User {new_assignee.username} does not belong to team {new_team.id}"
+                )
+            ticket.team_id = new_team.id
+            ticket.assigned_to = new_assignee.id
+
+        elif new_team is not None:
+            ticket.team_id = new_team.id
+            if ticket.assigned_to is not None:
+                current_assignee = db.query(User).filter(User.id == ticket.assigned_to).first()
+                if current_assignee and current_assignee.team_id != new_team.id:
+                    ticket.assigned_to = None
+
+        elif new_assignee is not None:
+            # Only assignee changed: auto-fill team from user, or validate against existing team
+            ticket.assigned_to = new_assignee.id
+            if ticket.team_id is None:
+                ticket.team_id = new_assignee.team_id  # may also be None, that's fine
+            elif new_assignee.team_id != ticket.team_id:
+                raise ValidationException(
+                    f"User {new_assignee.username} does not belong to the ticket's current team. "
+                    f"Update team_id explicitly if you intend to transfer."
+                )
+
+        if unassign_user and not unassign_team:
+            # Explicit user removal without touching team: just clear the assignee
+            ticket.assigned_to = None
 
         db.commit()
 
@@ -173,6 +228,4 @@ class AdminTicketService:
         redis_client.delete(f"ticket:{id}")
         delete_by_prefix("tickets:")
         return _build_response(ticket)
-
-
 ticket_service_admin = AdminTicketService()

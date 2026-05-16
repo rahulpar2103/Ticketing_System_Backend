@@ -14,7 +14,7 @@ from app.core.exceptions import (
     NotFoundException, AlreadyExistsException, UnauthorizedException,
     SessionException, MissingCredentialException, ValidationException,
 )
-from app.models import userModel, teamModel, ticketModel
+from app.models import userModel, teamModel, ticketModel, commentModel
 
 Base.metadata.create_all(bind=engine, checkfirst=True)
 
