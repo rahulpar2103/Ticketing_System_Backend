@@ -98,6 +98,7 @@ class UserServiceAdmin:
             delete_by_prefix(f"tickets:agent:{user_id}:")
             delete_by_prefix(f"tickets:employee:{user_id}:")
             delete_by_prefix(f"comments:ticket:")
+            delete_by_prefix(f"tickets:assigned:{user_id}:")
 
         return {"message": f"User {user_id} updated successfully"}
     

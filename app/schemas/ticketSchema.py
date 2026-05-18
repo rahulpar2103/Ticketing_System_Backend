@@ -13,6 +13,8 @@ class TicketCreate(BaseModel):
     @field_validator("title", "description", mode="before")
     @classmethod
     def strip_and_reject_empty(cls, v: str) -> str:
+        if v is None:
+            return v
         if not isinstance(v, str):
             raise ValueError("Must be a string")
         v = v.strip()

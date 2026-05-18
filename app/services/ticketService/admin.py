@@ -57,9 +57,10 @@ class AdminTicketService:
         db.add(new_ticket)
         db.commit()
 
-        new_ticket = _load_ticket(db, new_ticket.id)
+        ticket_id = new_ticket.id
+        new_ticket = _load_ticket(db, ticket_id)
         if not new_ticket:
-            raise NotFoundException(f"Ticket {new_ticket.id} not found")
+            raise NotFoundException(f"Ticket {ticket_id} not found")
         delete_by_prefix("tickets:")
         return _build_response(new_ticket)
     
@@ -159,7 +160,7 @@ class AdminTicketService:
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
 
-        ticket = db.query(Ticket).filter(Ticket.id == id).first()
+        ticket = db.query(Ticket).filter(Ticket.id == id, Ticket.is_active == True).first()
         if not ticket:
             raise NotFoundException(f"Ticket {id} not found")
 
