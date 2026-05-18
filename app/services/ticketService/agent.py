@@ -2,9 +2,7 @@ from app.db.redis import safe_delete
 from app.db.redis import safe_setex
 from app.db.redis import safe_get
 import json
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
-# pyrefly: ignore [missing-import]
 from sqlalchemy import or_
 from app.db.redis import delete_by_prefix
 from app.models.ticketModel import Ticket, TicketStatus
@@ -15,7 +13,6 @@ from app.core.exceptions import NotFoundException, PermissionDeniedException, Va
 from app.services.ticketService.utils import _build_response, _load_ticket, _load_tickets
 from datetime import datetime, timezone
 
-# Valid status transitions for agents (and admins)
 VALID_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
     TicketStatus.open:        {TicketStatus.in_progress},
     TicketStatus.in_progress: {TicketStatus.resolved},
@@ -26,13 +23,11 @@ VALID_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
 
 class AgentTicketService:
 
-    @staticmethod
-    def _require_agent(current_user: User):
+    def _require_agent(self, current_user: User):
         if current_user.role.value != "agent":
             raise PermissionDeniedException("Not allowed to access this endpoint")
 
-    @staticmethod
-    def _is_accessible(ticket: Ticket, current_user: User) -> bool:
+    def _is_accessible(self, ticket: Ticket, current_user: User) -> bool:
         """Ticket is accessible if the agent created it, is assigned to it, or it belongs to their team."""
         return (
             ticket.created_by == current_user.id
@@ -40,19 +35,12 @@ class AgentTicketService:
             or (current_user.team_id is not None and ticket.team_id == current_user.team_id)
         )
 
-    @staticmethod
-    def _is_team_ticket(ticket: Ticket, current_user: User) -> bool:
+    def _is_team_ticket(self, ticket: Ticket, current_user: User) -> bool:
         return current_user.team_id is not None and ticket.team_id == current_user.team_id
 
-    # ------------------------------------------------------------------ #
-    # CREATE                                                               #
-    # ------------------------------------------------------------------ #
+    def create_ticket(self, ticket: TicketCreate, db: Session, current_user: User):
+        self._require_agent(current_user)
 
-    @staticmethod
-    def create_ticket(ticket: TicketCreate, db: Session, current_user: User):
-        AgentTicketService._require_agent(current_user)
-
-        # Normalize sentinels
         if ticket.assigned_to == -1:
             ticket.assigned_to = None
         if ticket.team_id == 0:
@@ -63,8 +51,6 @@ class AgentTicketService:
             assigned_user = db.query(User).filter(User.id == ticket.assigned_to).first()
             if not assigned_user:
                 raise NotFoundException(f"User {ticket.assigned_to} not found")
-
-            # Mirror update_ticket: assignee must belong to the agent's own team
             if assigned_user.team_id != current_user.team_id:
                 raise PermissionDeniedException("You can only assign tickets to members of your own team")
 
@@ -72,14 +58,11 @@ class AgentTicketService:
             team = db.query(Team).filter(Team.id == ticket.team_id).first()
             if not team:
                 raise NotFoundException(f"Team {ticket.team_id} not found")
-
-            # Mirror update_ticket: supplied team_id must match the assignee's team
             if assigned_user is not None and assigned_user.team_id != ticket.team_id:
                 raise ValidationException(
                     f"User {assigned_user.username} does not belong to team {ticket.team_id}"
                 )
         elif assigned_user is not None:
-            # Auto-fill team_id from the assignee (stays None if the user has no team)
             ticket.team_id = assigned_user.team_id
 
         new_ticket = Ticket(
@@ -100,14 +83,9 @@ class AgentTicketService:
         delete_by_prefix("tickets:")
         return _build_response(new_ticket)
 
-    # ------------------------------------------------------------------ #
-    # READ                                                                 #
-    # ------------------------------------------------------------------ #
-
-    @staticmethod
-    def get_my_tickets(db: Session, current_user: User, limit: int, offset: int):
+    def get_my_tickets(self, db: Session, current_user: User, limit: int, offset: int):
         """All tickets the agent created, is assigned to, or that belong to their team."""
-        AgentTicketService._require_agent(current_user)
+        self._require_agent(current_user)
         cache_key = f"tickets:agent:{current_user.id}:{limit}:{offset}"
         cached = safe_get(cache_key)
         if cached:
@@ -125,9 +103,8 @@ class AgentTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
-    @staticmethod
-    def get_ticket(id: int, db: Session, current_user: User):
-        AgentTicketService._require_agent(current_user)
+    def get_ticket(self, id: int, db: Session, current_user: User):
+        self._require_agent(current_user)
         cache_key = f"ticket:{id}"
         cached = safe_get(cache_key)
         if cached:
@@ -147,16 +124,15 @@ class AgentTicketService:
         ticket = _load_ticket(db, id)
         if not ticket:
             raise NotFoundException(f"Ticket {id} not found")
-        if not AgentTicketService._is_accessible(ticket, current_user):
+        if not self._is_accessible(ticket, current_user):
             raise PermissionDeniedException("You do not have access to this ticket")
 
         response = _build_response(ticket)
         safe_setex(cache_key, 60 * 60, json.dumps(response.model_dump(mode="json")))
         return response
 
-    @staticmethod
-    def get_created_tickets(db: Session, current_user: User, limit: int, offset: int):
-        AgentTicketService._require_agent(current_user)
+    def get_created_tickets(self, db: Session, current_user: User, limit: int, offset: int):
+        self._require_agent(current_user)
         cache_key = f"tickets:created:{current_user.id}:{limit}:{offset}"
         cached = safe_get(cache_key)
         if cached:
@@ -168,9 +144,8 @@ class AgentTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
-    @staticmethod
-    def get_assigned_tickets(db: Session, current_user: User, limit: int, offset: int):
-        AgentTicketService._require_agent(current_user)
+    def get_assigned_tickets(self, db: Session, current_user: User, limit: int, offset: int):
+        self._require_agent(current_user)
         cache_key = f"tickets:assigned:{current_user.id}:{limit}:{offset}"
         cached = safe_get(cache_key)
         if cached:
@@ -182,10 +157,9 @@ class AgentTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
-    @staticmethod
-    def get_team_tickets(db: Session, current_user: User, limit: int, offset: int):
+    def get_team_tickets(self, db: Session, current_user: User, limit: int, offset: int):
         """Own team tickets only."""
-        AgentTicketService._require_agent(current_user)
+        self._require_agent(current_user)
         if current_user.team_id is None:
             raise PermissionDeniedException("You are not assigned to a team")
         cache_key = f"tickets:team:{current_user.team_id}:{limit}:{offset}"
@@ -199,26 +173,20 @@ class AgentTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
-    # ------------------------------------------------------------------ #
-    # UPDATE                                                               #
-    # ------------------------------------------------------------------ #
-
-    @staticmethod
-    def update_ticket(id: int, ticket_update: TicketUpdate, db: Session, current_user: User):
-        AgentTicketService._require_agent(current_user)
+    def update_ticket(self, id: int, ticket_update: TicketUpdate, db: Session, current_user: User):
+        self._require_agent(current_user)
 
         ticket = _load_ticket(db, id)
         if not ticket:
             raise NotFoundException(f"Ticket {id} not found")
 
-        if not AgentTicketService._is_accessible(ticket, current_user):
+        if not self._is_accessible(ticket, current_user):
             raise PermissionDeniedException("You do not have access to this ticket")
 
-        is_team_ticket = AgentTicketService._is_team_ticket(ticket, current_user)
+        is_team_ticket = self._is_team_ticket(ticket, current_user)
         is_creator = ticket.created_by == current_user.id
         is_assignee = ticket.assigned_to == current_user.id
 
-        # title / description — own created tickets only
         if ticket_update.title is not None or ticket_update.description is not None:
             if not is_creator:
                 raise PermissionDeniedException("You can only edit title or description on tickets you created")
@@ -227,27 +195,24 @@ class AgentTicketService:
             if ticket_update.description is not None:
                 ticket.description = ticket_update.description
 
-        # priority — team tickets only
         if ticket_update.priority is not None:
             if not is_team_ticket:
                 raise PermissionDeniedException("You can only change priority on your team's tickets")
             ticket.priority = ticket_update.priority
 
-        # status — any accessible ticket, state machine enforced
         if ticket_update.status is not None:
             if not (is_creator or is_assignee or is_team_ticket):
                 raise PermissionDeniedException("You do not have permission to change the status of this ticket")
             allowed = VALID_TRANSITIONS.get(ticket.status, set())
             if ticket_update.status not in allowed:
                 raise ValidationException(
-                    f"Invalid transition: '{ticket.status.value}' → '{ticket_update.status.value}'. "
+                    f"Invalid transition: '{ticket.status.value}' \u2192 '{ticket_update.status.value}'. "
                     f"Allowed: {[s.value for s in allowed] or 'none (terminal state)'}"
                 )
             ticket.status = ticket_update.status
             if ticket_update.status == TicketStatus.resolved:
                 ticket.resolved_at = datetime.now(timezone.utc)
 
-        # assigned_to — team tickets only; -1 sentinel to unassign
         if ticket_update.assigned_to == -1:
             if not is_team_ticket:
                 raise PermissionDeniedException("You can only reassign your team's tickets")
@@ -262,7 +227,6 @@ class AgentTicketService:
                 raise PermissionDeniedException("You can only assign tickets to members of your own team")
             ticket.assigned_to = ticket_update.assigned_to
 
-        # team_id — transfer allowed, unassign (0) not allowed; clears assignee on transfer
         if ticket_update.team_id is not None:
             if ticket_update.team_id == 0:
                 raise PermissionDeniedException("Agents cannot unassign a ticket from a team")

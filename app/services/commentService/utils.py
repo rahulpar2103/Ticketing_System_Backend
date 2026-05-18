@@ -1,4 +1,3 @@
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session, joinedload
 from app.models.commentModel import Comment
 from app.schemas.commentSchema import CommentResponse

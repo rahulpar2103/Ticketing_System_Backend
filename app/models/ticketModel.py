@@ -1,11 +1,7 @@
-# pyrefly: ignore [missing-import]
 from sqlalchemy import Column, Integer, String, Enum, DateTime, ForeignKey, func, Boolean      
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
-# pyrefly: ignore [missing-import]
 from app.db.database import Base
 import enum
-# pyrefly: ignore [missing-import]
 import sqlalchemy as sa
 
 class TicketStatus(enum.Enum):

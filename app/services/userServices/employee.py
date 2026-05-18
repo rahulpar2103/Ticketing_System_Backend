@@ -4,19 +4,12 @@ import json
 from app.core.exceptions import InvalidCredentialsException
 from app.core.security import verify_password
 from app.core.exceptions import NotFoundException
-# pyrefly: ignore [missing-import]
 from app.models.userModel import User
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
-# pyrefly: ignore [missing-import]
 from app.core.exceptions import PermissionDeniedException
-# pyrefly: ignore [missing-import]
 from app.core.security import hash_password
-# pyrefly: ignore [missing-import]
 from app.schemas.userSchema import passwordUpdate
-# pyrefly: ignore [missing-import]
 from app.schemas.userSchema import UserResponse
-# pyrefly: ignore [missing-import]
 class UserServiceEmployee:
     def get_user(self, current_user, user_id: int, db: Session) -> UserResponse:
         if current_user.role.value != "employee" or current_user.id != user_id:

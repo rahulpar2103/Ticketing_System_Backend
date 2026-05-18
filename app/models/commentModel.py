@@ -1,6 +1,4 @@
-# pyrefly: ignore [missing-import]
 from sqlalchemy import Column, Integer, ForeignKey, Text, Boolean, DateTime, func
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 

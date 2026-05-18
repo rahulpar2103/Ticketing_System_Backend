@@ -1,5 +1,4 @@
 import json
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session, joinedload
 from app.models.ticketModel import Ticket
 from app.schemas.ticketSchema import TicketResponse

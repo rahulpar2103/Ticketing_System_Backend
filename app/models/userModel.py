@@ -1,10 +1,6 @@
-# pyrefly: ignore [missing-import]
 from sqlalchemy import Column, Integer, String, Boolean, Enum, DateTime, ForeignKey, func
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
-# pyrefly: ignore [missing-import]
 from app.db.database import Base
-# pyrefly: ignore [missing-import]
 import enum
 
 class UserRole(enum.Enum):

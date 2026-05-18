@@ -3,17 +3,12 @@ from app.models.teamModel import Team
 from app.db.redis import delete_by_prefix, safe_get, safe_setex, safe_delete
 from app.core.exceptions import NotFoundException
 from app.core.exceptions import PermissionDeniedException
-# pyrefly: ignore [missing-import]
 from app.schemas.userSchema import UserUpdate
-# pyrefly: ignore [missing-import]
 from app.schemas.userSchema import passwordUpdate
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
-# pyrefly: ignore [missing-import]
 from app.models.userModel import User
 from app.core.security import hash_password
 import json
-# pyrefly: ignore [missing-import]
 from app.schemas.userSchema import UserResponse
 
 class UserServiceAdmin:

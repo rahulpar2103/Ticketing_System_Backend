@@ -1,20 +1,13 @@
-# pyrefly: ignore [missing-import]
 import pytest
-# pyrefly: ignore [missing-import]
 from sqlalchemy import create_engine
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
-# pyrefly: ignore [missing-import]
 from fastapi.testclient import TestClient
 from app.main import app
-# pyrefly: ignore [missing-import]
 from app.dependencies.db import get_db
-# pyrefly: ignore [missing-import]
 from app.dependencies.user import get_current_user
 from app.models.userModel import User, UserRole
 from app.models import userModel, teamModel, ticketModel, commentModel
-# pyrefly: ignore [missing-import]
 from app.db.database import Base
 
 engine = create_engine(settings.TEST_DATABASE_URL)

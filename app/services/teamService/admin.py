@@ -9,7 +9,6 @@ from app.core.exceptions import (
 )
 from app.models.teamModel import Team
 from app.models.userModel import User
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 from app.schemas.teamSchema import TeamCreate, TeamResponse
 

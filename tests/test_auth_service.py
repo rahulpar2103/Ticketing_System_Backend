@@ -1,10 +1,7 @@
 from app.services.userServices.auth import auth_service
-# pyrefly: ignore [missing-import]
 from app.schemas.userSchema import UserCreate
 from app.models.userModel import UserRole, User
-# pyrefly: ignore [missing-import]
 from app.core.exceptions import AlreadyExistsException
-# pyrefly: ignore [missing-import]
 import pytest
 
 # A fake admin user to pass as current_user

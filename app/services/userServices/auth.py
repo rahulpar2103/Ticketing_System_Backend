@@ -5,9 +5,7 @@ from app.models.teamModel import Team
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.exceptions import PermissionDeniedException, InvalidCredentialsException, AlreadyExistsException
 from app.schemas.userSchema import UserCreate, UserResponse, TokenResponse
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
-# pyrefly: ignore [missing-import]
 from sqlalchemy import select, or_
 
 

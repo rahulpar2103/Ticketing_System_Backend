@@ -1,4 +1,3 @@
-# pyrefly: ignore [missing-import]
 from pydantic import BaseModel, field_validator
 from datetime import datetime
 

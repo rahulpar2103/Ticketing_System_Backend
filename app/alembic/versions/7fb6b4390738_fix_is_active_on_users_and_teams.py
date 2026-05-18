@@ -8,7 +8,6 @@ Create Date: 2026-05-18 17:05:24.741366
 from typing import Sequence, Union
 
 from alembic import op
-# pyrefly: ignore [missing-import]
 import sqlalchemy as sa
 
 

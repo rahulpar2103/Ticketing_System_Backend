@@ -4,7 +4,6 @@ from app.schemas.userSchema import UserResponse
 from app.core.exceptions import PermissionDeniedException, NotFoundException
 from app.models.teamModel import Team
 from app.models.userModel import User
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 from app.schemas.teamSchema import TeamResponse
 

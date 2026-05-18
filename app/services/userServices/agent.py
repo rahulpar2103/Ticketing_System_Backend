@@ -6,15 +6,10 @@ from app.core.exceptions import InvalidCredentialsException
 from app.schemas.userSchema import UserResponse
 import json
 from app.core.exceptions import NotFoundException
-# pyrefly: ignore [missing-import]
 from app.models.userModel import User
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
-# pyrefly: ignore [missing-import]
 from app.core.exceptions import PermissionDeniedException
-# pyrefly: ignore [missing-import]
 from app.core.security import hash_password
-# pyrefly: ignore [missing-import]
 from app.schemas.userSchema import passwordUpdate
 from app.db.redis import safe_get, safe_setex
 

@@ -1,9 +1,7 @@
 from datetime import timezone
 from datetime import datetime
 import json
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
-# pyrefly: ignore [missing-import]
 from sqlalchemy import or_
 from app.db.redis import delete_by_prefix, safe_delete, safe_setex, safe_get    
 from app.models.ticketModel import Ticket, TicketStatus
@@ -15,13 +13,11 @@ from app.services.ticketService.utils import _build_response, _load_ticket, _loa
 
 class EmployeeTicketService:
 
-    @staticmethod
-    def _require_employee(current_user: User):
+    def _require_employee(self, current_user: User):
         if current_user.role.value != "employee":
             raise PermissionDeniedException("Not allowed to access this endpoint")
 
-    @staticmethod
-    def _is_accessible(ticket: Ticket, current_user: User) -> bool:
+    def _is_accessible(self, ticket: Ticket, current_user: User) -> bool:
         """Employee can only see tickets they created or that are assigned to them."""
         return (
             ticket.created_by == current_user.id
@@ -32,9 +28,8 @@ class EmployeeTicketService:
     # CREATE                                                               #
     # ------------------------------------------------------------------ #
 
-    @staticmethod
-    def create_ticket(ticket: TicketCreate, db: Session, current_user: User):
-        EmployeeTicketService._require_employee(current_user)
+    def create_ticket(self, ticket: TicketCreate, db: Session, current_user: User):
+        self._require_employee(current_user)
 
         # Employees cannot set assignee or team
         if ticket.assigned_to is not None:
@@ -58,10 +53,9 @@ class EmployeeTicketService:
     # READ                                                                 #
     # ------------------------------------------------------------------ #
 
-    @staticmethod
-    def get_my_tickets(db: Session, current_user: User, limit: int, offset: int):
+    def get_my_tickets(self, db: Session, current_user: User, limit: int, offset: int):
         """Tickets the employee created or is assigned to."""
-        EmployeeTicketService._require_employee(current_user)
+        self._require_employee(current_user)
         cache_key = f"tickets:employee:{current_user.id}:{limit}:{offset}"
         cached = safe_get(cache_key)
         if cached:
@@ -78,9 +72,8 @@ class EmployeeTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
-    @staticmethod
-    def get_ticket(id: int, db: Session, current_user: User):
-        EmployeeTicketService._require_employee(current_user)
+    def get_ticket(self, id: int, db: Session, current_user: User):
+        self._require_employee(current_user)
         cache_key = f"ticket:{id}"
         cached = safe_get(cache_key)
         if cached:
@@ -95,16 +88,15 @@ class EmployeeTicketService:
         ticket = _load_ticket(db, id)
         if not ticket:
             raise NotFoundException(f"Ticket {id} not found")
-        if not EmployeeTicketService._is_accessible(ticket, current_user):
+        if not self._is_accessible(ticket, current_user):
             raise PermissionDeniedException("You do not have access to this ticket")
 
         response = _build_response(ticket)
         safe_setex(cache_key, 60 * 60, json.dumps(response.model_dump(mode="json")))
         return response
 
-    @staticmethod
-    def get_created_tickets(db: Session, current_user: User, limit: int, offset: int):
-        EmployeeTicketService._require_employee(current_user)
+    def get_created_tickets(self, db: Session, current_user: User, limit: int, offset: int):
+        self._require_employee(current_user)
         cache_key = f"tickets:created:{current_user.id}:{limit}:{offset}"
         cached = safe_get(cache_key)
         if cached:
@@ -116,9 +108,8 @@ class EmployeeTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
-    @staticmethod
-    def get_assigned_tickets(db: Session, current_user: User, limit: int, offset: int):
-        EmployeeTicketService._require_employee(current_user)
+    def get_assigned_tickets(self, db: Session, current_user: User, limit: int, offset: int):
+        self._require_employee(current_user)
         cache_key = f"tickets:assigned:{current_user.id}:{limit}:{offset}"
         cached = safe_get(cache_key)
         if cached:
@@ -134,9 +125,8 @@ class EmployeeTicketService:
     # UPDATE                                                               #
     # ------------------------------------------------------------------ #
 
-    @staticmethod
-    def update_ticket(id: int, ticket_update: TicketUpdate, db: Session, current_user: User):
-        EmployeeTicketService._require_employee(current_user)
+    def update_ticket(self, id: int, ticket_update: TicketUpdate, db: Session, current_user: User):
+        self._require_employee(current_user)
 
         ticket = _load_ticket(db, id)
         if not ticket:

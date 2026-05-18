@@ -1,14 +1,10 @@
-# pyrefly: ignore [missing-import]
 from app.schemas.teamSchema import TeamUpdate
 from app.models import teamModel
 from app.dependencies.user import get_current_user
 from app.schemas.userSchema import UserResponse
 from app.dependencies.db import get_db
-# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends
-# pyrefly: ignore [missing-import]
 from app.services.teamService.admin import team_service_admin
-# pyrefly: ignore [missing-import]
 from app.schemas.teamSchema import TeamCreate, TeamResponse
 
 router = APIRouter(prefix="/teams/admin", tags=["Admin Teams"])

@@ -1,4 +1,3 @@
-# pyrefly: ignore [missing-import]
 from pydantic import BaseModel, EmailStr, field_validator
 from app.models.userModel import UserRole
 

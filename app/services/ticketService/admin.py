@@ -4,7 +4,6 @@ from app.db.redis import safe_get
 from app.models.ticketModel import TicketStatus
 from app.core.exceptions import ValidationException
 import json
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
 from app.db.redis import delete_by_prefix
 from app.models.ticketModel import Ticket
@@ -17,8 +16,7 @@ from datetime import datetime, timezone
 
 class AdminTicketService:
 
-    @staticmethod
-    def create_ticket(ticket: TicketCreate, db: Session, current_user: User):
+    def create_ticket(self, ticket: TicketCreate, db: Session, current_user: User):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
 
@@ -64,8 +62,7 @@ class AdminTicketService:
         delete_by_prefix("tickets:")
         return _build_response(new_ticket)
     
-    @staticmethod
-    def get_all_tickets(db: Session, current_user: User, limit: int, offset: int):
+    def get_all_tickets(self, db: Session, current_user: User, limit: int, offset: int):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"tickets:all:{limit}:{offset}"
@@ -77,8 +74,7 @@ class AdminTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
-    @staticmethod
-    def get_ticket(id: int, db: Session, current_user: User):
+    def get_ticket(self, id: int, db: Session, current_user: User):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"ticket:{id}"
@@ -92,8 +88,7 @@ class AdminTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps(response.model_dump(mode="json")))
         return response
 
-    @staticmethod
-    def get_assigned_tickets(db: Session, current_user: User, limit: int, offset: int):
+    def get_assigned_tickets(self, db: Session, current_user: User, limit: int, offset: int):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"tickets:assigned_to_me:{current_user.id}:{limit}:{offset}"
@@ -107,8 +102,7 @@ class AdminTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
-    @staticmethod
-    def get_created_tickets(db: Session, current_user: User, limit: int, offset: int):
+    def get_created_tickets(self, db: Session, current_user: User, limit: int, offset: int):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"tickets:created:{current_user.id}:{limit}:{offset}"
@@ -122,8 +116,7 @@ class AdminTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
-    @staticmethod
-    def get_team_tickets(team_id: int, db: Session, current_user: User, limit: int, offset: int):
+    def get_team_tickets(self, team_id: int, db: Session, current_user: User, limit: int, offset: int):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
         team = db.query(Team).filter(Team.id == team_id).first()
@@ -140,8 +133,7 @@ class AdminTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
-    @staticmethod
-    def get_tickets_assigned_to_user(user_id: int, db: Session, current_user: User, limit: int, offset: int):
+    def get_tickets_assigned_to_user(self, user_id: int, db: Session, current_user: User, limit: int, offset: int):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"tickets:assigned_to_user:{user_id}:{limit}:{offset}"
@@ -155,8 +147,7 @@ class AdminTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
-    @staticmethod
-    def update_ticket(id: int, ticket_update: TicketUpdate, db: Session, current_user: User):
+    def update_ticket(self, id: int, ticket_update: TicketUpdate, db: Session, current_user: User):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
 

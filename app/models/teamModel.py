@@ -1,10 +1,6 @@
-# pyrefly: ignore [missing-import]
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, func
-# pyrefly: ignore [missing-import]
 from app.db.database import Base
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import relationship
-# pyrefly: ignore [missing-import]
 
 class Team(Base):
     __tablename__ = "teams"

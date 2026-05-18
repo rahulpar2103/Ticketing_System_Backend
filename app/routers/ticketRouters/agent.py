@@ -1,14 +1,8 @@
-# pyrefly: ignore [missing-import]
 from fastapi import APIRouter, Depends, Request
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
-# pyrefly: ignore [missing-import]
 from app.core.limiter import limiter
-# pyrefly: ignore [missing-import]
 from app.dependencies.user import get_current_user
-# pyrefly: ignore [missing-import]
 from app.dependencies.db import get_db
-# pyrefly: ignore [missing-import]
 from app.models.userModel import User
 from app.schemas.ticketSchema import TicketCreate, TicketResponse, TicketUpdate
 from app.services.ticketService.agent import ticket_service_agent
