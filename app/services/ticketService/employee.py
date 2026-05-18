@@ -147,10 +147,17 @@ class EmployeeTicketService:
         if ticket_update.priority is not None:
             raise PermissionDeniedException("Employees cannot change ticket priority")
 
-        # status — only open → closed
+        # status — open → closed (cancel) or resolved → closed (confirm fix)
         if ticket_update.status is not None:
-            if ticket.status != TicketStatus.open or ticket_update.status != TicketStatus.closed:
-                raise ValidationException("Employees can only close their own open tickets (open → closed)")
+            allowed_transitions = {
+                TicketStatus.open: TicketStatus.closed,
+                TicketStatus.resolved: TicketStatus.closed,
+            }
+            expected = allowed_transitions.get(ticket.status)
+            if expected is None or ticket_update.status != expected:
+                raise ValidationException(
+                    "Employees can only close their own tickets (open → closed or resolved → closed)"
+                )
             ticket.status = ticket_update.status
 
         # assigned_to — not allowed

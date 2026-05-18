@@ -108,7 +108,7 @@ All account creation is admin-controlled. There is no self-registration.
 | View tickets assigned to a specific user | ✅ | ❌ | ❌ |
 | Edit title/description | ✅ | ✅ (own created only) | ✅ (own created, open status only) |
 | Change priority | ✅ | ✅ (team tickets) | ❌ |
-| Change status | ✅ (any transition) | ✅ (valid transitions²) | ✅ (open → closed only) |
+| Change status | ✅ (any transition) | ✅ (valid transitions²) | ✅ (open → closed, resolved → closed) |
 | Assign/reassign user | ✅ (any user) | ✅ (own team members) | ❌ |
 | Change team | ✅ | ✅ (transfers allowed³) | ❌ |
 | Unassign user (`assigned_to = -1`) | ✅ | ✅ (team tickets) | ❌ |
@@ -126,7 +126,7 @@ All account creation is admin-controlled. There is no self-registration.
 | View comments on a ticket | ✅ (any ticket) | ✅ (accessible tickets) | ✅ (own tickets) |
 | View single comment by ID | ✅ | ✅ (accessible tickets) | ✅ (own tickets) |
 | Edit a comment | ✅ (any comment) | ✅ (own comments only) | ✅ (own comments only) |
-| Delete a comment | ✅ (any comment) | ✅ (own comments only) | ❌ |
+| Delete a comment | ✅ (any comment) | ✅ (own comments only) | ✅ (own comments only) |
 
 ### Ticket Status Transitions by Role
 
@@ -136,8 +136,8 @@ Admin:    Can set any status freely (no restrictions)
 Agent:    open ──→ in_progress ──→ resolved ──→ closed
           (strict sequential, no skipping)
 
-Employee: open ──→ closed
-          (can only close their own open tickets)
+Employee: open ──→ closed       (cancel / no longer needed)
+          resolved ──→ closed   (confirm fix)
 ```
 
 ---

@@ -1,6 +1,6 @@
 import json
 from sqlalchemy.orm import Session
-from app.db.redis import safe_get, safe_setex, delete_by_prefix
+from app.db.redis import safe_get, safe_setex, safe_delete, delete_by_prefix
 from app.models.commentModel import Comment
 from app.models.ticketModel import Ticket
 from app.models.userModel import User, UserRole
@@ -78,7 +78,20 @@ class EmployeeCommentService:
         delete_by_prefix(f"comments:ticket:{comment.ticket_id}:")
         return _build_response(comment)
 
-    # No delete for employees — per permissions design
+    def delete_comment(self, comment_id: int, db: Session, current_user: User):
+        if current_user.role != UserRole.employee:
+            raise PermissionDeniedException("Not allowed to access this endpoint")
+        comment = db.query(Comment).filter(Comment.id == comment_id).first()
+        if not comment:
+            raise NotFoundException(f"Comment {comment_id} not found")
+        if comment.user_id != current_user.id:
+            raise PermissionDeniedException("You can only delete your own comments")
+        ticket_id = comment.ticket_id
+        db.delete(comment)
+        db.commit()
+        safe_delete(f"comment:{comment_id}")
+        delete_by_prefix(f"comments:ticket:{ticket_id}:")
+        return {"message": f"Comment {comment_id} deleted successfully"}
 
 
 employee_comment_service = EmployeeCommentService()

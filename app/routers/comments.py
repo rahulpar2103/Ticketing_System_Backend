@@ -94,12 +94,6 @@ def delete_comment(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete a comment. Admin and agent only."""
-    role = current_user.role
-    if role == UserRole.admin:
-        return admin_comment_service.delete_comment(comment_id, db, current_user)
-    elif role == UserRole.agent:
-        return agent_comment_service.delete_comment(comment_id, db, current_user)
-    else:
-        from app.core.exceptions import PermissionDeniedException
-        raise PermissionDeniedException("Employees cannot delete comments")
+    """Delete a comment. Ownership rules vary by role."""
+    service = _get_comment_service(current_user.role)
+    return service.delete_comment(comment_id, db, current_user)
