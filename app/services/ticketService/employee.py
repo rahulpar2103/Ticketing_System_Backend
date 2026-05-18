@@ -1,3 +1,5 @@
+from datetime import timezone
+from datetime import datetime
 import json
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
@@ -68,7 +70,7 @@ class EmployeeTicketService:
 
         tickets = _load_tickets(
             db.query(Ticket).filter(
-                or_(Ticket.created_by == current_user.id, Ticket.assigned_to == current_user.id)
+                or_(Ticket.created_by == current_user.id, Ticket.assigned_to == current_user.id, Ticket.is_active == True)
             )
         ).limit(limit).offset(offset).all()
 
@@ -108,7 +110,7 @@ class EmployeeTicketService:
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.created_by == current_user.id)
+            db.query(Ticket).filter(Ticket.created_by == current_user.id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
         redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
@@ -122,7 +124,7 @@ class EmployeeTicketService:
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.assigned_to == current_user.id)
+            db.query(Ticket).filter(Ticket.assigned_to == current_user.id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
         redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
@@ -162,6 +164,8 @@ class EmployeeTicketService:
             if ticket.status != TicketStatus.open or ticket_update.status != TicketStatus.closed:
                 raise ValidationException("Employees can only close their own open tickets (open → closed)")
             ticket.status = ticket_update.status
+            if ticket_update.status == TicketStatus.resolved:
+                ticket.resolved_at = datetime.now(timezone.utc)
 
         # assigned_to — not allowed
         if ticket_update.assigned_to is not None:

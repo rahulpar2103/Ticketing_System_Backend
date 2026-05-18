@@ -26,7 +26,7 @@ class UserServiceAgent:
         if current_user.role.value == "agent":
             if current_user.id != user_id:
                 if target_user is None:
-                    target_user = db.query(User).filter(User.id == user_id).first()
+                    target_user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
                     if not target_user:
                         raise NotFoundException("User not found")
                 if current_user.team_id is None or current_user.team_id != target_user.team_id:
@@ -36,7 +36,7 @@ class UserServiceAgent:
         if target_user:
             return target_user
 
-        user = db.query(User).filter(User.id == user_id).first()
+        user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
         if not user:
             raise NotFoundException("User not found")
 

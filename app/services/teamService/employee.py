@@ -22,7 +22,7 @@ class TeamServiceEmployee:
         cached = redis_client.get(cache_key)
         if cached:
             return TeamResponse.model_validate(json.loads(cached))
-        team = db.query(Team).filter(Team.id == id).first()
+        team = db.query(Team).filter(Team.id == id, Team.is_active == True).first()
         if not team:
             raise NotFoundException(f"Team {id} not found")
         redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(TeamResponse.model_validate(team).model_dump(mode="json")))
@@ -35,14 +35,14 @@ class TeamServiceEmployee:
             raise PermissionDeniedException("You are not assigned to a team")
         if current_user.team_id != team_id:
             raise PermissionDeniedException("You are not authorized to get members of this team")
-        team = db.query(Team).filter(Team.id == team_id).first()
+        team = db.query(Team).filter(Team.id == team_id, Team.is_active == True).first()
         if not team:
             raise NotFoundException(f"Team {team_id} not found")
         cache_key = f"team_members:{team_id}:{limit}:{offset}"
         cached = redis_client.get(cache_key)
         if cached:
             return [UserResponse.model_validate(u) for u in json.loads(cached)]
-        members = db.query(User).filter(User.team_id == team_id).limit(limit).offset(offset).all()
+        members = db.query(User).filter(User.team_id == team_id, User.is_active == True).limit(limit).offset(offset).all()
         serialized = [UserResponse.model_validate(u).model_dump(mode="json") for u in members]
         redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
         return [UserResponse.model_validate(u) for u in members]

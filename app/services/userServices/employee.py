@@ -26,7 +26,7 @@ class UserServiceEmployee:
         cache_data = redis_client.get(cache_key)
         if cache_data:
             return UserResponse.model_validate(json.loads(cache_data))
-        user = db.query(User).filter(User.id == user_id).first()
+        user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
         if not user:
             raise NotFoundException("User not found")
         redis_client.setex(cache_key, 3600, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))

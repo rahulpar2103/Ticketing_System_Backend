@@ -1,7 +1,8 @@
+from app.core.exceptions import NotFoundException
 from app.db.redis import delete_by_prefix
-from app.models.userModel import UserRole
+from app.models.userModel import UserRole, User
+from app.models.teamModel import Team
 from app.core.security import hash_password, verify_password, create_access_token
-from app.models.userModel import User
 from app.db.redis import redis_client
 from app.core.exceptions import PermissionDeniedException, InvalidCredentialsException, AlreadyExistsException
 from app.schemas.userSchema import UserCreate, UserResponse, TokenResponse
@@ -27,8 +28,13 @@ class AuthService:
         if existing:
             raise AlreadyExistsException("A user with that email or username already exists")
 
-        if '@' in user.username or '.' in user.username: 
+        if '@' in user.username or '.' in user.username:
             raise AlreadyExistsException("Username cannot contain @ or .")
+
+        if user.team_id is not None:
+            team = db.query(Team).filter(Team.id == user.team_id).first()
+            if not team:
+                raise NotFoundException(f"Team {user.team_id} not found")
 
         new_user = User(
             name=user.name,

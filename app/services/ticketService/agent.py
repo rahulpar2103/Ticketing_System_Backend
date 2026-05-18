@@ -10,6 +10,7 @@ from app.models.userModel import User
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
 from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
 from app.services.ticketService.utils import _build_response, _load_ticket, _load_tickets
+from datetime import datetime, timezone
 
 # Valid status transitions for agents (and admins)
 VALID_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
@@ -110,7 +111,7 @@ class AgentTicketService:
             filters.append(Ticket.team_id == current_user.team_id)
 
         tickets = _load_tickets(
-            db.query(Ticket).filter(or_(*filters))
+            db.query(Ticket).filter(or_(*filters), Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
 
         responses = [_build_response(t) for t in tickets]
@@ -154,7 +155,7 @@ class AgentTicketService:
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.created_by == current_user.id)
+            db.query(Ticket).filter(Ticket.created_by == current_user.id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
         redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
@@ -168,7 +169,7 @@ class AgentTicketService:
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.assigned_to == current_user.id)
+            db.query(Ticket).filter(Ticket.assigned_to == current_user.id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
         redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
@@ -185,7 +186,7 @@ class AgentTicketService:
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.team_id == current_user.team_id)
+            db.query(Ticket).filter(Ticket.team_id == current_user.team_id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
         redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
@@ -236,6 +237,8 @@ class AgentTicketService:
                     f"Allowed: {[s.value for s in allowed] or 'none (terminal state)'}"
                 )
             ticket.status = ticket_update.status
+            if ticket_update.status == TicketStatus.resolved:
+                ticket.resolved_at = datetime.now(timezone.utc)
 
         # assigned_to — team tickets only; -1 sentinel to unassign
         if ticket_update.assigned_to == -1:

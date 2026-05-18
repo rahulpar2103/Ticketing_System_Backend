@@ -22,4 +22,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.execute(select(User).where(User.username == username)).scalar_one_or_none()
     if not user:
         raise SessionException("User not found")
+    if not user.is_active:
+        raise SessionException("Account is disabled")
     return user

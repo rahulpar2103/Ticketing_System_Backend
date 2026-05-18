@@ -28,7 +28,7 @@ class UserServiceAdmin:
         if cached_data:
             return [UserResponse.model_validate(item) for item in json.loads(cached_data)]
 
-        users = db.query(User).limit(limit).offset(offset).all()
+        users = db.query(User).filter(User.is_active == True).limit(limit).offset(offset).all()
         serialized = [UserResponse.model_validate(u).model_dump(mode="json") for u in users]
         redis_client.setex(cache_key, 60 * 60, json.dumps(serialized))
 
@@ -44,7 +44,7 @@ class UserServiceAdmin:
         if cached_data:
             return UserResponse.model_validate(json.loads(cached_data))
 
-        user = db.query(User).filter(User.id == user_id).first()
+        user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
         if not user:
             raise NotFoundException("User not found")
 
@@ -70,6 +70,9 @@ class UserServiceAdmin:
             if not team:
                 raise NotFoundException("Team not found")
 
+        role_changed = user_update.role is not None and user_update.role != user_obj.role
+        team_changed = user_update.team_id is not None and user_update.team_id != user_obj.team_id
+
         if user_update.name:
             user_obj.name = user_update.name
         if user_update.username:
@@ -79,19 +82,27 @@ class UserServiceAdmin:
         if user_update.role:
             user_obj.role = user_update.role
         if user_update.team_id is not None:
-            if user_update.team_id==0:
+            if user_update.team_id == 0:
                 user_obj.team_id = None
             else:
                 user_obj.team_id = user_update.team_id
 
         db.commit()
         db.refresh(user_obj)
-        cache_key = f"user:{user_id}"
-        redis_client.delete(cache_key)
+
+        redis_client.delete(f"user:{user_id}")
         delete_by_prefix("all_users:")
 
-        return {"message": f"User {user_id} updated successfully"}
+        if role_changed or team_changed:
+            delete_by_prefix(f"tickets:assigned_to_me:{user_id}:")
+            delete_by_prefix(f"tickets:assigned_to_user:{user_id}:")
+            delete_by_prefix(f"tickets:created:{user_id}:")
+            delete_by_prefix(f"tickets:agent:{user_id}:")
+            delete_by_prefix(f"tickets:employee:{user_id}:")
+            delete_by_prefix(f"comments:ticket:")
 
+        return {"message": f"User {user_id} updated successfully"}
+    
     def delete_user(self,current_user,user_id: int,db: Session):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("You do not have permission to delete a user")
@@ -100,16 +111,16 @@ class UserServiceAdmin:
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise NotFoundException("User not found")
-        db.delete(user)
+        user.is_active = False
         db.commit()
         redis_client.delete(f"user:{user_id}")
-        delete_by_prefix("all_users:")  
+        delete_by_prefix("all_users:")
         return {"message": f"User {user_id} deleted successfully"}
 
     def update_user_password(self,current_user,user_id: int,user_update:passwordUpdate,db: Session):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("You do not have permission to update a user password")
-        user = db.query(User).filter(User.id == user_id).first()
+        user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
         if not user:
             raise NotFoundException("User not found")
         user.hashed_password = hash_password(user_update.new_password)  

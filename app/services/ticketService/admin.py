@@ -1,3 +1,4 @@
+from app.models.ticketModel import TicketStatus
 from app.core.exceptions import ValidationException
 import json
 # pyrefly: ignore [missing-import]
@@ -9,7 +10,7 @@ from app.models.userModel import User
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
 from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
 from app.services.ticketService.utils import _build_response, _load_ticket, _load_tickets
-
+from datetime import datetime, timezone
 
 class AdminTicketService:
 
@@ -65,7 +66,7 @@ class AdminTicketService:
         cached = redis_client.get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = _load_tickets(db.query(Ticket)).limit(limit).offset(offset).all()
+        tickets = _load_tickets(db.query(Ticket).filter(Ticket.is_active == True)).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
         redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
@@ -89,12 +90,12 @@ class AdminTicketService:
     def get_assigned_tickets(db: Session, current_user: User, limit: int, offset: int):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
-        cache_key = f"tickets:assigned:{current_user.id}:{limit}:{offset}"
+        cache_key = f"tickets:assigned_to_me:{current_user.id}:{limit}:{offset}"
         cached = redis_client.get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.assigned_to == current_user.id)
+            db.query(Ticket).filter(Ticket.assigned_to == current_user.id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
         redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
@@ -109,7 +110,7 @@ class AdminTicketService:
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.created_by == current_user.id)
+            db.query(Ticket).filter(Ticket.created_by == current_user.id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
         redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
@@ -127,7 +128,7 @@ class AdminTicketService:
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.team_id == team_id)
+            db.query(Ticket).filter(Ticket.team_id == team_id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
         redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
@@ -137,12 +138,12 @@ class AdminTicketService:
     def get_tickets_assigned_to_user(user_id: int, db: Session, current_user: User, limit: int, offset: int):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
-        cache_key = f"tickets:assigned:{user_id}:{limit}:{offset}"
+        cache_key = f"tickets:assigned_to_user:{user_id}:{limit}:{offset}"
         cached = redis_client.get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.assigned_to == user_id)
+            db.query(Ticket).filter(Ticket.assigned_to == user_id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
         redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
@@ -163,6 +164,8 @@ class AdminTicketService:
             ticket.description = ticket_update.description
         if ticket_update.status is not None:
             ticket.status = ticket_update.status
+            if ticket_update.status == TicketStatus.resolved:
+                ticket.resolved_at = datetime.now(timezone.utc)
         if ticket_update.priority is not None:
             ticket.priority = ticket_update.priority
 

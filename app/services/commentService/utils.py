@@ -24,4 +24,5 @@ def _build_response(comment: Comment) -> CommentResponse:
         username=comment.user.username if comment.user else None,
         is_edited=comment.is_edited,
         created_at=comment.created_at,
+        updated_at=comment.updated_at,
     )

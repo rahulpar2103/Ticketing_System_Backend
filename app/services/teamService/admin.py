@@ -36,7 +36,7 @@ class TeamServiceAdmin:
         cached = redis_client.get(cache_key)
         if cached:
             return [TeamResponse.model_validate(t) for t in json.loads(cached)]
-        teams = db.query(Team).limit(limit).offset(offset).all()
+        teams = db.query(Team).filter(Team.is_active == True).limit(limit).offset(offset).all()
         serialized = [TeamResponse.model_validate(t).model_dump(mode="json") for t in teams]
         redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
         return [TeamResponse.model_validate(t) for t in teams]
@@ -48,7 +48,7 @@ class TeamServiceAdmin:
         cached = redis_client.get(cache_key)
         if cached:
             return TeamResponse.model_validate(json.loads(cached))
-        team = db.query(Team).filter(Team.id == id).first()
+        team = db.query(Team).filter(Team.id == id, Team.is_active == True).first()
         if not team:
             raise NotFoundException(f"Team {id} not found")
         redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(TeamResponse.model_validate(team).model_dump(mode="json")))
@@ -57,14 +57,14 @@ class TeamServiceAdmin:
     def get_team_members(self, team_id: int, current_user: User, db: Session, limit: int, offset: int):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("You are not authorized to get team members")
-        team = db.query(Team).filter(Team.id == team_id).first()
+        team = db.query(Team).filter(Team.id == team_id, Team.is_active == True).first()
         if not team:
             raise NotFoundException(f"Team {team_id} not found")
         cache_key = f"team_members:{team_id}:{limit}:{offset}"
         cached = redis_client.get(cache_key)
         if cached:
             return [UserResponse.model_validate(u) for u in json.loads(cached)]
-        members = db.query(User).filter(User.team_id == team_id).limit(limit).offset(offset).all()
+        members = db.query(User).filter(User.team_id == team_id, User.is_active == True).limit(limit).offset(offset).all()
         serialized = [UserResponse.model_validate(u).model_dump(mode="json") for u in members]
         redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
         return [UserResponse.model_validate(u) for u in members]
@@ -98,7 +98,7 @@ class TeamServiceAdmin:
         team = db.query(Team).filter(Team.id == id).first()
         if not team:
             raise NotFoundException(f"Team {id} not found")
-        db.delete(team)
+        team.is_active = False
         db.commit()
         redis_client.delete(f"team:{id}")
         delete_by_prefix("teams:")
