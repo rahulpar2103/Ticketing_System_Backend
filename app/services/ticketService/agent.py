@@ -6,7 +6,7 @@ import json
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from sqlalchemy import or_
-from app.db.redis import redis_client, delete_by_prefix
+from app.db.redis import delete_by_prefix
 from app.models.ticketModel import Ticket, TicketStatus
 from app.models.teamModel import Team
 from app.models.userModel import User
@@ -93,6 +93,8 @@ class AgentTicketService:
         db.add(new_ticket)
         db.commit()
         new_ticket = _load_ticket(db, new_ticket.id)
+        if not new_ticket:
+            raise NotFoundException(f"Ticket {new_ticket.id} not found")
         delete_by_prefix("tickets:")
         return _build_response(new_ticket)
 
@@ -271,6 +273,8 @@ class AgentTicketService:
         db.commit()
         ticket = _load_ticket(db, id)
 
+        if not ticket:
+            raise NotFoundException(f"Ticket {id} not found")
         safe_delete(f"ticket:{id}")
         delete_by_prefix("tickets:")
         return _build_response(ticket)
