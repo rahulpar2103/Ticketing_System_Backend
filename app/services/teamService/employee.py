@@ -3,7 +3,7 @@ from app.db.redis import safe_get, safe_setex, safe_delete
 from app.schemas.userSchema import UserResponse
 from app.core.exceptions import PermissionDeniedException, NotFoundException
 from app.models.teamModel import Team
-from app.models.userModel import User
+from app.models.userModel import User, UserRole
 from sqlalchemy.orm import Session
 from app.schemas.teamSchema import TeamResponse
 
@@ -11,7 +11,7 @@ from app.schemas.teamSchema import TeamResponse
 class TeamServiceEmployee:
 
     def get_team(self, id: int, current_user: User, db: Session):
-        if current_user.role.value != "employee":
+        if current_user.role != UserRole.employee:
             raise PermissionDeniedException("You are not authorized to hit this endpoint")
         if current_user.team_id is None:
             raise PermissionDeniedException("You are not assigned to a team")
@@ -28,7 +28,7 @@ class TeamServiceEmployee:
         return TeamResponse.model_validate(team)
 
     def get_team_members(self, team_id: int, current_user: User, db: Session, limit: int, offset: int):
-        if current_user.role.value != "employee":
+        if current_user.role != UserRole.employee:
             raise PermissionDeniedException("You are not authorized to hit this endpoint")
         if current_user.team_id is None:
             raise PermissionDeniedException("You are not assigned to a team")

@@ -4,16 +4,16 @@ from app.db.redis import delete_by_prefix, safe_get, safe_setex, safe_delete
 from app.core.exceptions import NotFoundException
 from app.core.exceptions import PermissionDeniedException
 from app.schemas.userSchema import UserUpdate
-from app.schemas.userSchema import passwordUpdate
+from app.schemas.userSchema import AdminPasswordReset
 from sqlalchemy.orm import Session
-from app.models.userModel import User
+from app.models.userModel import User, UserRole
 from app.core.security import hash_password
 import json
 from app.schemas.userSchema import UserResponse
 
 class UserServiceAdmin:
     def get_all_users(self, current_user, db: Session, limit: int, offset: int) -> list[UserResponse]:
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("You do not have permission to get all users")
 
         cache_key = f"all_users:{limit}:{offset}"
@@ -29,7 +29,7 @@ class UserServiceAdmin:
         
 
     def get_user(self, current_user, user_id: int, db: Session) -> UserResponse:
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("You do not have permission to get a user")
 
         cache_key = f"user:{user_id}"
@@ -46,7 +46,7 @@ class UserServiceAdmin:
 
 
     def update_user(self, current_user, user_id: int, user_update: UserUpdate, db: Session)->UserResponse:
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("You do not have permission to update a user")
         
         user_obj = db.query(User).filter(User.id == user_id).first()  
@@ -98,7 +98,7 @@ class UserServiceAdmin:
         return {"message": f"User {user_id} updated successfully"}
     
     def delete_user(self,current_user,user_id: int,db: Session):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("You do not have permission to delete a user")
         if current_user.id == user_id:
             raise PermissionDeniedException("You cannot delete yourself")
@@ -111,8 +111,8 @@ class UserServiceAdmin:
         delete_by_prefix("all_users:")
         return {"message": f"User {user_id} deleted successfully"}
 
-    def update_user_password(self,current_user,user_id: int,user_update:passwordUpdate,db: Session):
-        if current_user.role.value != "admin":
+    def update_user_password(self, current_user, user_id: int, user_update: AdminPasswordReset, db: Session):
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("You do not have permission to update a user password")
         user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
         if not user:

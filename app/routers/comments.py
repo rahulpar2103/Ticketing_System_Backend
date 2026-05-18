@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.limiter import limiter
 from app.dependencies.db import get_db
 from app.dependencies.user import get_current_user
-from app.models.userModel import User
+from app.models.userModel import User, UserRole
 from app.schemas.commentSchema import CommentCreate, CommentUpdate, CommentResponse
 from app.services.commentService.admin import admin_comment_service
 from app.services.commentService.agent import agent_comment_service
@@ -12,12 +12,12 @@ from app.services.commentService.employee import employee_comment_service
 router = APIRouter(tags=["Comments"])
 
 
-def _get_comment_service(role: str):
+def _get_comment_service(role: UserRole):
     """Return the appropriate comment service based on the user's role."""
     services = {
-        "admin": admin_comment_service,
-        "agent": agent_comment_service,
-        "employee": employee_comment_service,
+        UserRole.admin: admin_comment_service,
+        UserRole.agent: agent_comment_service,
+        UserRole.employee: employee_comment_service,
     }
     return services[role]
 
@@ -36,7 +36,7 @@ def create_comment(
     current_user: User = Depends(get_current_user),
 ):
     """Create a comment on a ticket. Behavior varies by role."""
-    service = _get_comment_service(current_user.role.value)
+    service = _get_comment_service(current_user.role)
     return service.create_comment(ticket_id, body, db, current_user)
 
 
@@ -51,7 +51,7 @@ def get_ticket_comments(
     offset: int = 0,
 ):
     """Get all comments for a ticket. Behavior varies by role."""
-    service = _get_comment_service(current_user.role.value)
+    service = _get_comment_service(current_user.role)
     return service.get_ticket_comments(ticket_id, db, current_user, limit, offset)
 
 
@@ -68,7 +68,7 @@ def get_comment(
     current_user: User = Depends(get_current_user),
 ):
     """Get a single comment. Behavior varies by role."""
-    service = _get_comment_service(current_user.role.value)
+    service = _get_comment_service(current_user.role)
     return service.get_comment(comment_id, db, current_user)
 
 
@@ -82,7 +82,7 @@ def update_comment(
     current_user: User = Depends(get_current_user),
 ):
     """Update a comment. Behavior varies by role."""
-    service = _get_comment_service(current_user.role.value)
+    service = _get_comment_service(current_user.role)
     return service.update_comment(comment_id, body, db, current_user)
 
 
@@ -95,10 +95,10 @@ def delete_comment(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a comment. Admin and agent only."""
-    role = current_user.role.value
-    if role == "admin":
+    role = current_user.role
+    if role == UserRole.admin:
         return admin_comment_service.delete_comment(comment_id, db, current_user)
-    elif role == "agent":
+    elif role == UserRole.agent:
         return agent_comment_service.delete_comment(comment_id, db, current_user)
     else:
         from app.core.exceptions import PermissionDeniedException

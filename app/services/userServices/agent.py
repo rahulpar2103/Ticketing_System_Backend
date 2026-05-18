@@ -6,11 +6,11 @@ from app.core.exceptions import InvalidCredentialsException
 from app.schemas.userSchema import UserResponse
 import json
 from app.core.exceptions import NotFoundException
-from app.models.userModel import User
+from app.models.userModel import User, UserRole
 from sqlalchemy.orm import Session
 from app.core.exceptions import PermissionDeniedException
 from app.core.security import hash_password
-from app.schemas.userSchema import passwordUpdate
+from app.schemas.userSchema import PasswordUpdate
 from app.db.redis import safe_get, safe_setex
 
 class UserServiceAgent:
@@ -19,7 +19,7 @@ class UserServiceAgent:
         cached_data = safe_get(cache_key)
         target_user = UserResponse.model_validate(json.loads(cached_data)) if cached_data else None
 
-        if current_user.role.value == "agent":
+        if current_user.role == UserRole.agent:
             if current_user.id != user_id:
                 if target_user is None:
                     target_user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
@@ -27,7 +27,7 @@ class UserServiceAgent:
                         raise NotFoundException("User not found")
                 if current_user.team_id is None or current_user.team_id != target_user.team_id:
                     raise PermissionDeniedException("You can only view your own profile or your teammates.")
-        elif current_user.role.value == "employee" or current_user.role.value=="admin":
+        elif current_user.role == UserRole.employee or current_user.role == UserRole.admin:
             raise PermissionDeniedException("Not authorized to access this endpoint.")
         if target_user:
             return target_user
@@ -40,22 +40,16 @@ class UserServiceAgent:
         return UserResponse.model_validate(user)
 
     
-    def update_user_password(self,current_user,user_id: int,user_update:passwordUpdate,db: Session):
-        if current_user.role.value != "agent" and current_user.role.value != "admin":
+    def update_user_password(self, current_user, user_id: int, user_update: PasswordUpdate, db: Session):
+        if current_user.role != UserRole.agent and current_user.role != UserRole.admin:
             raise PermissionDeniedException("You are not authorized to perform this action")
         if current_user.id != user_id:
             raise PermissionDeniedException("You can change only your own password")
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise NotFoundException("User not found")
-        if not user_update.current_password:
-            raise MissingCredentialException("Current password is required")
         if not verify_password(user_update.current_password, user.hashed_password):
             raise InvalidCredentialsException("Current password is incorrect")
-        if not user_update.new_password:
-            raise MissingCredentialException("New password is required")
-        if len(user_update.new_password) < 8:
-            raise InvalidCredentialsException("New password must be at least 8 characters long")
         user.hashed_password = hash_password(user_update.new_password)  
         db.commit()
         db.refresh(user)

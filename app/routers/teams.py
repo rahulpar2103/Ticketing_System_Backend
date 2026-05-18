@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.core.limiter import limiter
 from app.dependencies.db import get_db
 from app.dependencies.user import get_current_user
-from app.models.userModel import User
+from app.models.userModel import User, UserRole
 from app.schemas.teamSchema import TeamCreate, TeamUpdate, TeamResponse
 from app.schemas.userSchema import UserResponse
 from app.services.teamService.admin import team_service_admin
@@ -13,12 +13,12 @@ from app.services.teamService.employee import team_service_employee
 router = APIRouter(prefix="/teams", tags=["Teams"])
 
 
-def _get_team_service(role: str):
+def _get_team_service(role: UserRole):
     """Return the appropriate team service based on the user's role."""
     services = {
-        "admin": team_service_admin,
-        "agent": team_service_agent,
-        "employee": team_service_employee,
+        UserRole.admin: team_service_admin,
+        UserRole.agent: team_service_agent,
+        UserRole.employee: team_service_employee,
     }
     return services[role]
 
@@ -57,7 +57,7 @@ def get_team(
     db: Session = Depends(get_db),
 ):
     """Get a team by ID. Behavior varies by role."""
-    service = _get_team_service(current_user.role.value)
+    service = _get_team_service(current_user.role)
     return service.get_team(team_id, current_user, db)
 
 
@@ -97,5 +97,5 @@ def get_team_members(
     offset: int = 0,
 ):
     """Get members of a team. Behavior varies by role."""
-    service = _get_team_service(current_user.role.value)
+    service = _get_team_service(current_user.role)
     return service.get_team_members(team_id, current_user, db, limit, offset)

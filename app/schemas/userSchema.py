@@ -87,9 +87,29 @@ class UserUpdate(BaseModel):
             raise ValueError("Name cannot exceed 100 characters")
         return v
 
-class passwordUpdate(BaseModel):
-    current_password: str | None = None #Only for admin. Checks will be there for other roles.
+class PasswordUpdate(BaseModel):
+    """For agent/employee: must provide current password to change their own."""
+    current_password: str
     new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def new_password_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("New password must be at least 8 characters")
+        return v
+
+
+class AdminPasswordReset(BaseModel):
+    """For admin: can reset any user's password without knowing the current one."""
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def new_password_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("New password must be at least 8 characters")
+        return v
 
 class TokenResponse(BaseModel):
     access_token: str

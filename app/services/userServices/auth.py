@@ -13,7 +13,7 @@ class AuthService:
 
     def create_user(self, current_user: User, user: UserCreate, db: Session) -> UserResponse:
         """Admin-only: create a new user account."""
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Only admins can create users")
 
         existing = db.execute(

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.db.redis import safe_get, safe_setex, delete_by_prefix
 from app.models.commentModel import Comment
 from app.models.ticketModel import Ticket
-from app.models.userModel import User
+from app.models.userModel import User, UserRole
 from app.schemas.commentSchema import CommentCreate, CommentUpdate, CommentResponse
 from app.core.exceptions import NotFoundException, PermissionDeniedException
 from app.services.commentService.utils import _build_response, _load_comment, _load_comments
@@ -12,7 +12,7 @@ from app.services.commentService.utils import _build_response, _load_comment, _l
 class AdminCommentService:
 
     def create_comment(self, ticket_id: int, body: CommentCreate, db: Session, current_user: User):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
         if not db.query(Ticket).filter(Ticket.id == ticket_id).first():
             raise NotFoundException(f"Ticket {ticket_id} not found")
@@ -28,7 +28,7 @@ class AdminCommentService:
         return _build_response(comment)
 
     def get_ticket_comments(self, ticket_id: int, db: Session, current_user: User, limit: int, offset: int):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
         if not db.query(Ticket).filter(Ticket.id == ticket_id).first():
             raise NotFoundException(f"Ticket {ticket_id} not found")
@@ -44,7 +44,7 @@ class AdminCommentService:
         return responses
 
     def get_comment(self, comment_id: int, db: Session, current_user: User):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
         comment = _load_comment(db, comment_id)
         if not comment:
@@ -52,7 +52,7 @@ class AdminCommentService:
         return _build_response(comment)
 
     def update_comment(self, comment_id: int, body: CommentUpdate, db: Session, current_user: User):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
         comment = db.query(Comment).filter(Comment.id == comment_id).first()
         if not comment:
@@ -65,7 +65,7 @@ class AdminCommentService:
         return _build_response(comment)
 
     def delete_comment(self, comment_id: int, db: Session, current_user: User):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
         comment = db.query(Comment).filter(Comment.id == comment_id).first()
         if not comment:

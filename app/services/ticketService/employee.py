@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from app.db.redis import delete_by_prefix, safe_delete, safe_setex, safe_get    
 from app.models.ticketModel import Ticket, TicketStatus
-from app.models.userModel import User
+from app.models.userModel import User, UserRole
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
 from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
 from app.services.ticketService.utils import _build_response, _load_ticket, _load_tickets
@@ -14,7 +14,7 @@ from app.services.ticketService.utils import _build_response, _load_ticket, _loa
 class EmployeeTicketService:
 
     def _require_employee(self, current_user: User):
-        if current_user.role.value != "employee":
+        if current_user.role != UserRole.employee:
             raise PermissionDeniedException("Not allowed to access this endpoint")
 
     def _is_accessible(self, ticket: Ticket, current_user: User) -> bool:

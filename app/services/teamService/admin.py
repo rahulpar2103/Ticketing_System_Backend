@@ -8,7 +8,7 @@ from app.core.exceptions import (
     NotFoundException,
 )
 from app.models.teamModel import Team
-from app.models.userModel import User
+from app.models.userModel import User, UserRole
 from sqlalchemy.orm import Session
 from app.schemas.teamSchema import TeamCreate, TeamResponse
 
@@ -16,7 +16,7 @@ from app.schemas.teamSchema import TeamCreate, TeamResponse
 class TeamServiceAdmin:
 
     def create_team(self, team: TeamCreate, current_user: User, db: Session):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("You are not authorized to create a team")
         existing_team = db.query(Team).filter(Team.name == team.name).first()
         if existing_team:
@@ -29,7 +29,7 @@ class TeamServiceAdmin:
         return TeamResponse.model_validate(new_team)
 
     def get_all_teams(self, current_user: User, db: Session, limit: int, offset: int):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("You are not authorized to get all teams")
         cache_key = f"teams:{limit}:{offset}"
         cached = safe_get(cache_key)
@@ -41,7 +41,7 @@ class TeamServiceAdmin:
         return [TeamResponse.model_validate(t) for t in teams]
 
     def get_team(self, id: int, current_user: User, db: Session):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("You are not authorized to get a team")
         cache_key = f"team:{id}"
         cached = safe_get(cache_key)
@@ -54,7 +54,7 @@ class TeamServiceAdmin:
         return TeamResponse.model_validate(team)
 
     def get_team_members(self, team_id: int, current_user: User, db: Session, limit: int, offset: int):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("You are not authorized to get team members")
         team = db.query(Team).filter(Team.id == team_id, Team.is_active == True).first()
         if not team:
@@ -69,7 +69,7 @@ class TeamServiceAdmin:
         return [UserResponse.model_validate(u) for u in members]
 
     def update_team(self, id: int, team_update: TeamUpdate, current_user: User, db: Session):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("You are not authorized to update a team")
         team = db.query(Team).filter(Team.id == id).first()
         if not team:
@@ -92,7 +92,7 @@ class TeamServiceAdmin:
         return {"message": f"Team {id} updated successfully"}
 
     def delete_team(self, id: int, current_user: User, db: Session):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("You are not authorized to delete a team")
         team = db.query(Team).filter(Team.id == id).first()
         if not team:

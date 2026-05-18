@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.redis import delete_by_prefix
 from app.models.ticketModel import Ticket
 from app.models.teamModel import Team
-from app.models.userModel import User
+from app.models.userModel import User, UserRole
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
 from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
 from app.services.ticketService.utils import _build_response, _load_ticket, _load_tickets
@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 class AdminTicketService:
 
     def create_ticket(self, ticket: TicketCreate, db: Session, current_user: User):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
 
         # Normalize sentinel values
@@ -63,7 +63,7 @@ class AdminTicketService:
         return _build_response(new_ticket)
     
     def get_all_tickets(self, db: Session, current_user: User, limit: int, offset: int):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"tickets:all:{limit}:{offset}"
         cached = safe_get(cache_key)
@@ -75,7 +75,7 @@ class AdminTicketService:
         return responses
 
     def get_ticket(self, id: int, db: Session, current_user: User):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"ticket:{id}"
         cached = safe_get(cache_key)
@@ -89,7 +89,7 @@ class AdminTicketService:
         return response
 
     def get_assigned_tickets(self, db: Session, current_user: User, limit: int, offset: int):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"tickets:assigned_to_me:{current_user.id}:{limit}:{offset}"
         cached = safe_get(cache_key)
@@ -103,7 +103,7 @@ class AdminTicketService:
         return responses
 
     def get_created_tickets(self, db: Session, current_user: User, limit: int, offset: int):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"tickets:created:{current_user.id}:{limit}:{offset}"
         cached = safe_get(cache_key)
@@ -117,7 +117,7 @@ class AdminTicketService:
         return responses
 
     def get_team_tickets(self, team_id: int, db: Session, current_user: User, limit: int, offset: int):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
         team = db.query(Team).filter(Team.id == team_id).first()
         if not team:
@@ -134,7 +134,7 @@ class AdminTicketService:
         return responses
 
     def get_tickets_assigned_to_user(self, user_id: int, db: Session, current_user: User, limit: int, offset: int):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"tickets:assigned_to_user:{user_id}:{limit}:{offset}"
         cached = safe_get(cache_key)
@@ -148,7 +148,7 @@ class AdminTicketService:
         return responses
 
     def update_ticket(self, id: int, ticket_update: TicketUpdate, db: Session, current_user: User):
-        if current_user.role.value != "admin":
+        if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
 
         ticket = db.query(Ticket).filter(Ticket.id == id, Ticket.is_active == True).first()

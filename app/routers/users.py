@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from app.core.limiter import limiter
 from app.dependencies.db import get_db
 from app.dependencies.user import get_current_user
-from app.models.userModel import User
-from app.schemas.userSchema import UserResponse, UserUpdate, passwordUpdate
+from app.models.userModel import User, UserRole
+from app.schemas.userSchema import UserResponse, UserUpdate, PasswordUpdate, AdminPasswordReset
 from app.services.userServices.admin import user_service_admin
 from app.services.userServices.agent import user_service_agent
 from app.services.userServices.employee import user_service_employee
@@ -12,12 +12,12 @@ from app.services.userServices.employee import user_service_employee
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-def _get_user_service(role: str):
+def _get_user_service(role: UserRole):
     """Return the appropriate user service based on the user's role."""
     services = {
-        "admin": user_service_admin,
-        "agent": user_service_agent,
-        "employee": user_service_employee,
+        UserRole.admin: user_service_admin,
+        UserRole.agent: user_service_agent,
+        UserRole.employee: user_service_employee,
     }
     return services[role]
 
@@ -44,7 +44,7 @@ def get_user(
     db: Session = Depends(get_db),
 ):
     """Get a user by ID. Behavior varies by role."""
-    service = _get_user_service(current_user.role.value)
+    service = _get_user_service(current_user.role)
     return service.get_user(current_user, user_id, db)
 
 
@@ -75,13 +75,26 @@ def delete_user(
 
 @router.patch("/{user_id}/password", response_model=dict)
 @limiter.limit("5/minute")
-def update_user_password(
+def update_own_password(
     request: Request,
     user_id: int,
-    user_update: passwordUpdate,
+    user_update: PasswordUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Update a user's password. Behavior varies by role."""
-    service = _get_user_service(current_user.role.value)
+    """Change your own password. Requires current password. Agent/Employee only."""
+    service = _get_user_service(current_user.role)
     return service.update_user_password(current_user, user_id, user_update, db)
+
+
+@router.patch("/{user_id}/reset-password", response_model=dict)
+@limiter.limit("5/minute")
+def admin_reset_password(
+    request: Request,
+    user_id: int,
+    user_update: AdminPasswordReset,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Reset any user's password without current password. Admin only."""
+    return user_service_admin.update_user_password(current_user, user_id, user_update, db)
