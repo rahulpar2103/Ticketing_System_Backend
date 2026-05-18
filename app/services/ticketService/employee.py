@@ -1,5 +1,3 @@
-from datetime import timezone
-from datetime import datetime
 import json
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -154,8 +152,6 @@ class EmployeeTicketService:
             if ticket.status != TicketStatus.open or ticket_update.status != TicketStatus.closed:
                 raise ValidationException("Employees can only close their own open tickets (open → closed)")
             ticket.status = ticket_update.status
-            if ticket_update.status == TicketStatus.resolved:
-                ticket.resolved_at = datetime.now(timezone.utc)
 
         # assigned_to — not allowed
         if ticket_update.assigned_to is not None:

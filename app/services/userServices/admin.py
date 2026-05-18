@@ -45,20 +45,20 @@ class UserServiceAdmin:
         return UserResponse.model_validate(user)
 
 
-    def update_user(self, current_user, user_id: int, user_update: UserUpdate, db: Session)->UserResponse:
+    def update_user(self, current_user, user_id: int, user_update: UserUpdate, db: Session) -> dict:
         if current_user.role != UserRole.admin:
             raise PermissionDeniedException("You do not have permission to update a user")
         
         user_obj = db.query(User).filter(User.id == user_id).first()  
         if not user_obj:
             raise NotFoundException("User not found")
-        if user_update.username:
-            if db.query(User).filter(User.username == user_update.username).first():
+        if user_update.username is not None:
+            if db.query(User).filter(User.username == user_update.username, User.id != user_id).first():
                 raise AlreadyExistsException("Username already exists")
-        if user_update.email:
-            if db.query(User).filter(User.email == user_update.email).first():
+        if user_update.email is not None:
+            if db.query(User).filter(User.email == user_update.email, User.id != user_id).first():
                 raise AlreadyExistsException("Email already exists")
-        if user_update.team_id:
+        if user_update.team_id is not None and user_update.team_id != 0:
             team = db.query(Team).filter(Team.id == user_update.team_id).first()
             if not team:
                 raise NotFoundException("Team not found")
@@ -66,13 +66,13 @@ class UserServiceAdmin:
         role_changed = user_update.role is not None and user_update.role != user_obj.role
         team_changed = user_update.team_id is not None and user_update.team_id != user_obj.team_id
 
-        if user_update.name:
+        if user_update.name is not None:
             user_obj.name = user_update.name
-        if user_update.username:
+        if user_update.username is not None:
             user_obj.username = user_update.username
-        if user_update.email:
+        if user_update.email is not None:
             user_obj.email = user_update.email
-        if user_update.role:
+        if user_update.role is not None:
             user_obj.role = user_update.role
         if user_update.team_id is not None:
             if user_update.team_id == 0:

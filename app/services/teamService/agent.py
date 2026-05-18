@@ -1,5 +1,5 @@
 import json
-from app.db.redis import safe_get, safe_setex, safe_delete
+from app.db.redis import safe_get, safe_setex
 from app.schemas.userSchema import UserResponse
 from app.core.exceptions import PermissionDeniedException, NotFoundException
 from app.models.teamModel import Team

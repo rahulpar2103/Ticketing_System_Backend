@@ -1,5 +1,4 @@
 from app.db.redis import safe_delete
-from app.core.exceptions import MissingCredentialException
 from app.db.redis import delete_by_prefix
 from app.core.security import verify_password
 from app.core.exceptions import InvalidCredentialsException

@@ -1,5 +1,4 @@
-from app.db.redis import safe_setex, safe_get
-from app.core.exceptions import MissingCredentialException
+from app.db.redis import safe_setex, safe_get, safe_delete, delete_by_prefix
 import json
 from app.core.exceptions import InvalidCredentialsException
 from app.core.security import verify_password
@@ -38,6 +37,8 @@ class UserServiceEmployee:
         user.hashed_password = hash_password(user_update.new_password)  
         db.commit()
         db.refresh(user)
+        safe_delete(f"user:{user_id}")
+        delete_by_prefix("all_users:")
         return {"message": f"Password updated successfully for user {user_id}"}
 
 user_service_employee = UserServiceEmployee()

@@ -157,9 +157,9 @@ def make_db_comment(
 
 # ── TestClient fixtures (one per role) ──────────────────────────────────────
 
-def _seed_user_if_needed(db, role, username, email, user_id, team_id=None):
+def _seed_user_if_needed(db, role, username, email, user_id=None, team_id=None):
     """Insert a real DB user so FK constraints work. Returns the DB user."""
-    existing = db.query(User).filter(User.id == user_id).first()
+    existing = db.query(User).filter(User.username == username).first()
     if existing:
         return existing
     user = User(

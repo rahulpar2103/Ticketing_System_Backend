@@ -2,7 +2,6 @@ from app.db.redis import safe_delete
 from app.db.redis import safe_setex
 from app.db.redis import safe_get
 from app.models.ticketModel import TicketStatus
-from app.core.exceptions import ValidationException
 import json
 from sqlalchemy.orm import Session
 from app.db.redis import delete_by_prefix
