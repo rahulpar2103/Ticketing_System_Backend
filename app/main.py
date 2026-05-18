@@ -7,16 +7,12 @@ from slowapi import _rate_limit_exceeded_handler
 # pyrefly: ignore [missing-import]
 from slowapi.errors import RateLimitExceeded
 from app.routers import mainRouter
-from app.db.database import engine, Base
 from app.core.limiter import limiter
 from app.core.exceptions import (
     PermissionDeniedException, InvalidCredentialsException,
     NotFoundException, AlreadyExistsException, UnauthorizedException,
     SessionException, MissingCredentialException, ValidationException,
 )
-from app.models import userModel, teamModel, ticketModel, commentModel
-
-Base.metadata.create_all(bind=engine, checkfirst=True)
 
 app = FastAPI()
 app.state.limiter = limiter
