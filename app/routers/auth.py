@@ -9,16 +9,16 @@ from app.schemas.userSchema import UserCreate, UserResponse, TokenResponse
 from fastapi import BackgroundTasks
 from app.core.email import send_welcome_email
 
-router = APIRouter(tags=["Auth"])
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
 def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     return auth_service.login(form_data, db)
 
-@router.post("/create", status_code=201, response_model=UserResponse)
+@router.post("/register", status_code=201, response_model=UserResponse)
 @limiter.limit("20/minute")
-def create_user(
+def register(
     request: Request,
     user: UserCreate,
     background_tasks: BackgroundTasks,
