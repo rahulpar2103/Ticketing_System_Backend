@@ -1,9 +1,7 @@
-# pyrefly: ignore [missing-import]
 from app.core.exceptions import AlreadyExistsException
 from app.models.teamModel import Team
-from app.db.redis import delete_by_prefix
+from app.db.redis import delete_by_prefix, safe_get, safe_setex, safe_delete
 from app.core.exceptions import NotFoundException
-from app.db.redis import redis_client
 from app.core.exceptions import PermissionDeniedException
 # pyrefly: ignore [missing-import]
 from app.schemas.userSchema import UserUpdate
@@ -24,13 +22,13 @@ class UserServiceAdmin:
             raise PermissionDeniedException("You do not have permission to get all users")
 
         cache_key = f"all_users:{limit}:{offset}"
-        cached_data = redis_client.get(cache_key)
+        cached_data = safe_get(cache_key)
         if cached_data:
             return [UserResponse.model_validate(item) for item in json.loads(cached_data)]
 
         users = db.query(User).filter(User.is_active == True).limit(limit).offset(offset).all()
         serialized = [UserResponse.model_validate(u).model_dump(mode="json") for u in users]
-        redis_client.setex(cache_key, 60 * 60, json.dumps(serialized))
+        safe_setex(cache_key, 60 * 60, json.dumps(serialized))
 
         return [UserResponse.model_validate(u) for u in users]
         
@@ -40,7 +38,7 @@ class UserServiceAdmin:
             raise PermissionDeniedException("You do not have permission to get a user")
 
         cache_key = f"user:{user_id}"
-        cached_data = redis_client.get(cache_key)
+        cached_data = safe_get(cache_key)
         if cached_data:
             return UserResponse.model_validate(json.loads(cached_data))
 
@@ -48,7 +46,7 @@ class UserServiceAdmin:
         if not user:
             raise NotFoundException("User not found")
 
-        redis_client.setex(cache_key, 60 * 60, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))
+        safe_setex(cache_key, 60 * 60, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))
         return UserResponse.model_validate(user)
 
 
@@ -90,7 +88,7 @@ class UserServiceAdmin:
         db.commit()
         db.refresh(user_obj)
 
-        redis_client.delete(f"user:{user_id}")
+        safe_delete(f"user:{user_id}")
         delete_by_prefix("all_users:")
 
         if role_changed or team_changed:
@@ -113,7 +111,7 @@ class UserServiceAdmin:
             raise NotFoundException("User not found")
         user.is_active = False
         db.commit()
-        redis_client.delete(f"user:{user_id}")
+        safe_delete(f"user:{user_id}")
         delete_by_prefix("all_users:")
         return {"message": f"User {user_id} deleted successfully"}
 
@@ -126,7 +124,7 @@ class UserServiceAdmin:
         user.hashed_password = hash_password(user_update.new_password)  
         db.commit()
         db.refresh(user)
-        redis_client.delete(f"user:{user_id}")
+        safe_delete(f"user:{user_id}")
         delete_by_prefix("all_users:")  
         return {"message": f"Password updated successfully for user {user_id}"}
 

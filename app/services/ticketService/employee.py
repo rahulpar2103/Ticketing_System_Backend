@@ -5,8 +5,7 @@ import json
 from sqlalchemy.orm import Session
 # pyrefly: ignore [missing-import]
 from sqlalchemy import or_
-
-from app.db.redis import redis_client, delete_by_prefix
+from app.db.redis import delete_by_prefix, safe_delete, safe_setex, safe_get    
 from app.models.ticketModel import Ticket, TicketStatus
 from app.models.userModel import User
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
@@ -64,25 +63,26 @@ class EmployeeTicketService:
         """Tickets the employee created or is assigned to."""
         EmployeeTicketService._require_employee(current_user)
         cache_key = f"tickets:employee:{current_user.id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
 
         tickets = _load_tickets(
             db.query(Ticket).filter(
-                or_(Ticket.created_by == current_user.id, Ticket.assigned_to == current_user.id, Ticket.is_active == True)
-            )
+            or_(Ticket.created_by == current_user.id, Ticket.assigned_to == current_user.id),
+            Ticket.is_active == True
+        )
         ).limit(limit).offset(offset).all()
 
         responses = [_build_response(t) for t in tickets]
-        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
     @staticmethod
     def get_ticket(id: int, db: Session, current_user: User):
         EmployeeTicketService._require_employee(current_user)
         cache_key = f"ticket:{id}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             data = json.loads(cached)
             if (
@@ -99,35 +99,35 @@ class EmployeeTicketService:
             raise PermissionDeniedException("You do not have access to this ticket")
 
         response = _build_response(ticket)
-        redis_client.setex(cache_key, 60 * 60, json.dumps(response.model_dump(mode="json")))
+        safe_setex(cache_key, 60 * 60, json.dumps(response.model_dump(mode="json")))
         return response
 
     @staticmethod
     def get_created_tickets(db: Session, current_user: User, limit: int, offset: int):
         EmployeeTicketService._require_employee(current_user)
         cache_key = f"tickets:created:{current_user.id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
             db.query(Ticket).filter(Ticket.created_by == current_user.id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
-        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
     @staticmethod
     def get_assigned_tickets(db: Session, current_user: User, limit: int, offset: int):
         EmployeeTicketService._require_employee(current_user)
         cache_key = f"tickets:assigned:{current_user.id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
             db.query(Ticket).filter(Ticket.assigned_to == current_user.id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
-        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
     # ------------------------------------------------------------------ #
@@ -178,7 +178,7 @@ class EmployeeTicketService:
         db.commit()
         ticket = _load_ticket(db, id)
 
-        redis_client.delete(f"ticket:{id}")
+        safe_delete(f"ticket:{id}")
         delete_by_prefix("tickets:")
         return _build_response(ticket)
 

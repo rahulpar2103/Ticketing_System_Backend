@@ -1,6 +1,7 @@
 # pyrefly: ignore [missing-import]
 from pydantic import BaseModel, field_validator
 from app.models.ticketModel import TicketStatus, Priority
+from datetime import datetime
 
 class TicketCreate(BaseModel):
     title: str

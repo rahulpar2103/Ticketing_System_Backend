@@ -1,4 +1,4 @@
-# pyrefly: ignore [missing-import]
+from app.db.redis import safe_setex, safe_get
 from app.core.exceptions import MissingCredentialException
 import json
 from app.core.exceptions import InvalidCredentialsException
@@ -17,19 +17,18 @@ from app.schemas.userSchema import passwordUpdate
 # pyrefly: ignore [missing-import]
 from app.schemas.userSchema import UserResponse
 # pyrefly: ignore [missing-import]
-from app.db.redis import redis_client
 class UserServiceEmployee:
     def get_user(self, current_user, user_id: int, db: Session) -> UserResponse:
         if current_user.role.value != "employee" or current_user.id != user_id:
             raise PermissionDeniedException("You can only view your own profile")
         cache_key = f"user:{user_id}"
-        cache_data = redis_client.get(cache_key)
+        cache_data = safe_get(cache_key)
         if cache_data:
             return UserResponse.model_validate(json.loads(cache_data))
         user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
         if not user:
             raise NotFoundException("User not found")
-        redis_client.setex(cache_key, 3600, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))
+        safe_setex(cache_key, 3600, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))
         return UserResponse.model_validate(user)
 
     

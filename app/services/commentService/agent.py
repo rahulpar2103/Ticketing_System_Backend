@@ -2,7 +2,7 @@
 import json
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
-from app.db.redis import redis_client, delete_by_prefix
+from app.db.redis import safe_get, safe_setex, delete_by_prefix
 from app.models.commentModel import Comment
 from app.models.ticketModel import Ticket
 from app.models.userModel import User
@@ -47,14 +47,14 @@ class AgentCommentService:
         if not _ticket_accessible(ticket, current_user):
             raise PermissionDeniedException("You do not have access to this ticket")
         cache_key = f"comments:ticket:{ticket_id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [CommentResponse.model_validate(c) for c in json.loads(cached)]
         comments = _load_comments(
             db.query(Comment).filter(Comment.ticket_id == ticket_id)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(c) for c in comments]
-        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
     @staticmethod

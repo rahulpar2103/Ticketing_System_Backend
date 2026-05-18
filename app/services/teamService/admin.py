@@ -1,6 +1,6 @@
 from app.schemas.teamSchema import TeamUpdate
 import json
-from app.db.redis import delete_by_prefix, redis_client
+from app.db.redis import delete_by_prefix, safe_get, safe_setex, safe_delete
 from app.schemas.userSchema import UserResponse
 from app.core.exceptions import (
     AlreadyExistsException,
@@ -33,25 +33,25 @@ class TeamServiceAdmin:
         if current_user.role.value != "admin":
             raise PermissionDeniedException("You are not authorized to get all teams")
         cache_key = f"teams:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [TeamResponse.model_validate(t) for t in json.loads(cached)]
         teams = db.query(Team).filter(Team.is_active == True).limit(limit).offset(offset).all()
         serialized = [TeamResponse.model_validate(t).model_dump(mode="json") for t in teams]
-        redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
+        safe_setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
         return [TeamResponse.model_validate(t) for t in teams]
 
     def get_team(self, id: int, current_user: User, db: Session):
         if current_user.role.value != "admin":
             raise PermissionDeniedException("You are not authorized to get a team")
         cache_key = f"team:{id}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return TeamResponse.model_validate(json.loads(cached))
         team = db.query(Team).filter(Team.id == id, Team.is_active == True).first()
         if not team:
             raise NotFoundException(f"Team {id} not found")
-        redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(TeamResponse.model_validate(team).model_dump(mode="json")))
+        safe_setex(cache_key, 60 * 60 * 24, json.dumps(TeamResponse.model_validate(team).model_dump(mode="json")))
         return TeamResponse.model_validate(team)
 
     def get_team_members(self, team_id: int, current_user: User, db: Session, limit: int, offset: int):
@@ -61,12 +61,12 @@ class TeamServiceAdmin:
         if not team:
             raise NotFoundException(f"Team {team_id} not found")
         cache_key = f"team_members:{team_id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [UserResponse.model_validate(u) for u in json.loads(cached)]
         members = db.query(User).filter(User.team_id == team_id, User.is_active == True).limit(limit).offset(offset).all()
         serialized = [UserResponse.model_validate(u).model_dump(mode="json") for u in members]
-        redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
+        safe_setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
         return [UserResponse.model_validate(u) for u in members]
 
     def update_team(self, id: int, team_update: TeamUpdate, current_user: User, db: Session):
@@ -85,7 +85,7 @@ class TeamServiceAdmin:
             team.description = team_update.description
         db.commit()
         db.refresh(team)
-        redis_client.delete(f"team:{id}")
+        safe_delete(f"team:{id}")
 
         delete_by_prefix("teams:")
         delete_by_prefix("tickets:")
@@ -100,7 +100,7 @@ class TeamServiceAdmin:
             raise NotFoundException(f"Team {id} not found")
         team.is_active = False
         db.commit()
-        redis_client.delete(f"team:{id}")
+        safe_delete(f"team:{id}")
         delete_by_prefix("teams:")
         delete_by_prefix(f"team_members:{id}:")
         delete_by_prefix("tickets:")

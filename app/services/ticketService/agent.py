@@ -1,3 +1,6 @@
+from app.db.redis import safe_delete
+from app.db.redis import safe_setex
+from app.db.redis import safe_get
 import json
 # pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Session
@@ -102,7 +105,7 @@ class AgentTicketService:
         """All tickets the agent created, is assigned to, or that belong to their team."""
         AgentTicketService._require_agent(current_user)
         cache_key = f"tickets:agent:{current_user.id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
 
@@ -115,14 +118,14 @@ class AgentTicketService:
         ).limit(limit).offset(offset).all()
 
         responses = [_build_response(t) for t in tickets]
-        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
     @staticmethod
     def get_ticket(id: int, db: Session, current_user: User):
         AgentTicketService._require_agent(current_user)
         cache_key = f"ticket:{id}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             data = json.loads(cached)
             team_id_match = (
@@ -144,35 +147,35 @@ class AgentTicketService:
             raise PermissionDeniedException("You do not have access to this ticket")
 
         response = _build_response(ticket)
-        redis_client.setex(cache_key, 60 * 60, json.dumps(response.model_dump(mode="json")))
+        safe_setex(cache_key, 60 * 60, json.dumps(response.model_dump(mode="json")))
         return response
 
     @staticmethod
     def get_created_tickets(db: Session, current_user: User, limit: int, offset: int):
         AgentTicketService._require_agent(current_user)
         cache_key = f"tickets:created:{current_user.id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
             db.query(Ticket).filter(Ticket.created_by == current_user.id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
-        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
     @staticmethod
     def get_assigned_tickets(db: Session, current_user: User, limit: int, offset: int):
         AgentTicketService._require_agent(current_user)
         cache_key = f"tickets:assigned:{current_user.id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
             db.query(Ticket).filter(Ticket.assigned_to == current_user.id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
-        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
     @staticmethod
@@ -182,14 +185,14 @@ class AgentTicketService:
         if current_user.team_id is None:
             raise PermissionDeniedException("You are not assigned to a team")
         cache_key = f"tickets:team:{current_user.team_id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
             db.query(Ticket).filter(Ticket.team_id == current_user.team_id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
-        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
     # ------------------------------------------------------------------ #
@@ -268,7 +271,7 @@ class AgentTicketService:
         db.commit()
         ticket = _load_ticket(db, id)
 
-        redis_client.delete(f"ticket:{id}")
+        safe_delete(f"ticket:{id}")
         delete_by_prefix("tickets:")
         return _build_response(ticket)
 

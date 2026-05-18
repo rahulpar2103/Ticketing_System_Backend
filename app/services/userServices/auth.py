@@ -1,9 +1,8 @@
 from app.core.exceptions import NotFoundException
-from app.db.redis import delete_by_prefix
+from app.db.redis import safe_delete, delete_by_prefix
 from app.models.userModel import UserRole, User
 from app.models.teamModel import Team
 from app.core.security import hash_password, verify_password, create_access_token
-from app.db.redis import redis_client
 from app.core.exceptions import PermissionDeniedException, InvalidCredentialsException, AlreadyExistsException
 from app.schemas.userSchema import UserCreate, UserResponse, TokenResponse
 # pyrefly: ignore [missing-import]

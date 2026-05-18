@@ -1,3 +1,6 @@
+from app.db.redis import safe_delete
+from app.db.redis import safe_setex
+from app.db.redis import safe_get
 from app.models.ticketModel import TicketStatus
 from app.core.exceptions import ValidationException
 import json
@@ -63,12 +66,12 @@ class AdminTicketService:
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"tickets:all:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(db.query(Ticket).filter(Ticket.is_active == True)).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
-        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
     @staticmethod
@@ -76,14 +79,14 @@ class AdminTicketService:
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"ticket:{id}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return TicketResponse.model_validate(json.loads(cached))
         ticket = _load_ticket(db, id)
         if not ticket:
             raise NotFoundException(f"Ticket {id} not found")
         response = _build_response(ticket)
-        redis_client.setex(cache_key, 60 * 60, json.dumps(response.model_dump(mode="json")))
+        safe_setex(cache_key, 60 * 60, json.dumps(response.model_dump(mode="json")))
         return response
 
     @staticmethod
@@ -91,14 +94,14 @@ class AdminTicketService:
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"tickets:assigned_to_me:{current_user.id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
             db.query(Ticket).filter(Ticket.assigned_to == current_user.id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
-        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
     @staticmethod
@@ -106,14 +109,14 @@ class AdminTicketService:
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"tickets:created:{current_user.id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
             db.query(Ticket).filter(Ticket.created_by == current_user.id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
-        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
     @staticmethod
@@ -124,14 +127,14 @@ class AdminTicketService:
         if not team:
             raise NotFoundException(f"Team {team_id} not found")
         cache_key = f"tickets:team:{team_id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
             db.query(Ticket).filter(Ticket.team_id == team_id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
-        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
     @staticmethod
@@ -139,14 +142,14 @@ class AdminTicketService:
         if current_user.role.value != "admin":
             raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"tickets:assigned_to_user:{user_id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [TicketResponse.model_validate(t) for t in json.loads(cached)]
         tickets = _load_tickets(
             db.query(Ticket).filter(Ticket.assigned_to == user_id, Ticket.is_active == True)
         ).limit(limit).offset(offset).all()
         responses = [_build_response(t) for t in tickets]
-        redis_client.setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
+        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
         return responses
 
     @staticmethod
@@ -224,7 +227,7 @@ class AdminTicketService:
         db.commit()
 
         ticket = _load_ticket(db, id)
-        redis_client.delete(f"ticket:{id}")
+        safe_delete(f"ticket:{id}")
         delete_by_prefix("tickets:")
         return _build_response(ticket)
 ticket_service_admin = AdminTicketService()

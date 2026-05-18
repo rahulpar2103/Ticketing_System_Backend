@@ -1,10 +1,10 @@
+from app.db.redis import safe_delete
 from app.core.exceptions import MissingCredentialException
 from app.db.redis import delete_by_prefix
 from app.core.security import verify_password
 from app.core.exceptions import InvalidCredentialsException
 from app.schemas.userSchema import UserResponse
 import json
-from app.db.redis import redis_client
 from app.core.exceptions import NotFoundException
 # pyrefly: ignore [missing-import]
 from app.models.userModel import User
@@ -16,11 +16,12 @@ from app.core.exceptions import PermissionDeniedException
 from app.core.security import hash_password
 # pyrefly: ignore [missing-import]
 from app.schemas.userSchema import passwordUpdate
+from app.db.redis import safe_get, safe_setex
 
 class UserServiceAgent:
     def get_user(self, current_user, user_id: int, db: Session) -> UserResponse:
         cache_key = f"user:{user_id}"
-        cached_data = redis_client.get(cache_key)
+        cached_data = safe_get(cache_key)
         target_user = UserResponse.model_validate(json.loads(cached_data)) if cached_data else None
 
         if current_user.role.value == "agent":
@@ -40,7 +41,7 @@ class UserServiceAgent:
         if not user:
             raise NotFoundException("User not found")
 
-        redis_client.setex(cache_key, 60 * 60, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))
+        safe_setex(cache_key, 60 * 60, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))
         return UserResponse.model_validate(user)
 
     
@@ -63,7 +64,7 @@ class UserServiceAgent:
         user.hashed_password = hash_password(user_update.new_password)  
         db.commit()
         db.refresh(user)
-        redis_client.delete(f"user:{user_id}")
+        safe_delete(f"user:{user_id}")
         delete_by_prefix("all_users:")  
         return {"message": f"Password updated successfully for user {user_id}"}
 

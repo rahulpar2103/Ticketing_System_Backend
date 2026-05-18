@@ -1,5 +1,5 @@
 import json
-from app.db.redis import redis_client
+from app.db.redis import safe_get, safe_setex, safe_delete
 from app.schemas.userSchema import UserResponse
 from app.core.exceptions import PermissionDeniedException, NotFoundException
 from app.models.teamModel import Team
@@ -19,13 +19,13 @@ class TeamServiceEmployee:
         if current_user.team_id != id:
             raise PermissionDeniedException("You can only view your own team")
         cache_key = f"team:{id}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return TeamResponse.model_validate(json.loads(cached))
         team = db.query(Team).filter(Team.id == id, Team.is_active == True).first()
         if not team:
             raise NotFoundException(f"Team {id} not found")
-        redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(TeamResponse.model_validate(team).model_dump(mode="json")))
+        safe_setex(cache_key, 60 * 60 * 24, json.dumps(TeamResponse.model_validate(team).model_dump(mode="json")))
         return TeamResponse.model_validate(team)
 
     def get_team_members(self, team_id: int, current_user: User, db: Session, limit: int, offset: int):
@@ -39,12 +39,12 @@ class TeamServiceEmployee:
         if not team:
             raise NotFoundException(f"Team {team_id} not found")
         cache_key = f"team_members:{team_id}:{limit}:{offset}"
-        cached = redis_client.get(cache_key)
+        cached = safe_get(cache_key)
         if cached:
             return [UserResponse.model_validate(u) for u in json.loads(cached)]
         members = db.query(User).filter(User.team_id == team_id, User.is_active == True).limit(limit).offset(offset).all()
         serialized = [UserResponse.model_validate(u).model_dump(mode="json") for u in members]
-        redis_client.setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
+        safe_setex(cache_key, 60 * 60 * 24, json.dumps(serialized))
         return [UserResponse.model_validate(u) for u in members]
 
 
