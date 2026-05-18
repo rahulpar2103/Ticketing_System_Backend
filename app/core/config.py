@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     DATABASE_URL: str
+    TEST_DATABASE_URL: str
     DB_POOL_SIZE: int
     DB_MAX_OVERFLOW: int
     DEBUG: bool
