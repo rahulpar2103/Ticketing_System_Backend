@@ -1,3 +1,4 @@
+from app.services.auditService import log_audit_event
 from app.db.redis import safe_delete
 from app.db.redis import safe_setex
 from app.db.redis import safe_get
@@ -84,6 +85,8 @@ class AgentTicketService:
         db.commit()
         
         ticket_id = new_ticket.id
+        log_audit_event(db, ticket_id, current_user, "CREATED")
+        db.commit()
         new_ticket = _load_ticket(db, ticket_id)
         if not new_ticket:
             raise NotFoundException(f"Ticket {ticket_id} not found")
@@ -247,6 +250,8 @@ class AgentTicketService:
             ticket.team_id = ticket_update.team_id
             ticket.assigned_to = None
 
+        log_audit_event(db, id, current_user, "UPDATED", ticket_update.model_dump(exclude_unset=True, mode='json'))
+
         db.commit()
         ticket = _load_ticket(db, id)
 
@@ -265,6 +270,8 @@ class AgentTicketService:
         if not self._is_accessible(ticket, current_user):
             raise PermissionDeniedException("You do not have access to this ticket")
         ticket.is_active = False
+        db.commit()
+        log_audit_event(db, id, current_user, "DELETED")
         db.commit()
         safe_delete(f"ticket:{id}")
         delete_by_prefix("tickets:")

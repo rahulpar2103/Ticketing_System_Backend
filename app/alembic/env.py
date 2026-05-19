@@ -17,7 +17,7 @@ from app.db.database import Base
 
 # Import every model so SQLAlchemy registers them on Base.metadata
 # Without these, autogenerate won't detect your tables
-from app.models import userModel, teamModel, ticketModel, commentModel
+from app.models import userModel, teamModel, ticketModel, commentModel, auditModel
 
 # ── Alembic config ──────────────────────────────────────────────────────────
 config = context.config

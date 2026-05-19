@@ -1,3 +1,4 @@
+from app.services.auditService import log_audit_event
 import json
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -170,6 +171,8 @@ class EmployeeTicketService:
         if ticket_update.team_id is not None:
             raise PermissionDeniedException("Employees cannot transfer tickets to a team")
 
+        log_audit_event(db, id, current_user, "UPDATED", ticket_update.model_dump(exclude_unset=True, mode='json'))
+
         db.commit()
         ticket = _load_ticket(db, id)
 
@@ -192,6 +195,8 @@ class EmployeeTicketService:
         if ticket.status != TicketStatus.open:
             raise PermissionDeniedException("Employees can only delete tickets that are still open")
         ticket.is_active = False
+        db.commit()
+        log_audit_event(db, id, current_user, "DELETED")
         db.commit()
         safe_delete(f"ticket:{id}")
         delete_by_prefix("tickets:")

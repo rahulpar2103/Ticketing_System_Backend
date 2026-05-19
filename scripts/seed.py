@@ -15,6 +15,18 @@ from datetime import datetime, timezone, timedelta
 db = session_local()
 
 try:
+    # Clear existing data
+    print("[*] Clearing existing data...")
+    from app.models.commentModel import Comment
+    from app.models.auditModel import AuditLog
+    db.query(Comment).delete(synchronize_session=False)
+    db.query(AuditLog).delete(synchronize_session=False)
+    db.query(Ticket).delete(synchronize_session=False)
+    db.query(User).delete(synchronize_session=False)
+    db.query(Team).delete(synchronize_session=False)
+    db.commit()
+    print("[+] Data cleared")
+
     # ── Teams ───────────────────────────────────────────────────────────────
     teams_data = [
         {"name": "Platform Engineering",  "description": "Infrastructure, CI/CD, and cloud services"},

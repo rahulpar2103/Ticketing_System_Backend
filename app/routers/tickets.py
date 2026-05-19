@@ -6,6 +6,7 @@ from app.dependencies.user import get_current_user
 from app.models.userModel import User, UserRole
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
 from app.schemas.pagination import PaginatedResponse
+from app.schemas.auditSchema import AuditLogResponse
 from app.services.ticketService.admin import ticket_service_admin
 from app.services.ticketService.agent import ticket_service_agent
 from app.services.ticketService.employee import ticket_service_employee
@@ -195,6 +196,21 @@ def get_ticket(
     """Get a single ticket by ID. Behavior varies by role."""
     service = _get_ticket_service(current_user.role)
     return service.get_ticket(ticket_id, db, current_user)
+
+
+@router.get("/{ticket_id}/history", response_model=PaginatedResponse[AuditLogResponse])
+@limiter.limit("30/minute")
+def get_ticket_history(
+    request: Request,
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Get the audit history of a specific ticket."""
+    from app.services.auditService import get_ticket_audit_logs
+    return get_ticket_audit_logs(ticket_id, db, current_user, limit, offset)
 
 
 # ------------------------------------------------------------------ #
