@@ -3,7 +3,7 @@ from app.db.redis import safe_delete, delete_by_prefix
 from app.models.userModel import UserRole, User
 from app.models.teamModel import Team
 from app.core.security import hash_password, verify_password, create_access_token
-from app.core.exceptions import PermissionDeniedException, InvalidCredentialsException, AlreadyExistsException
+from app.core.exceptions import PermissionDeniedException, InvalidCredentialsException, AlreadyExistsException, ValidationException
 from app.schemas.userSchema import UserCreate, UserResponse, TokenResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import select, or_
@@ -32,6 +32,8 @@ class AuthService:
             team = db.query(Team).filter(Team.id == user.team_id).first()
             if not team:
                 raise NotFoundException(f"Team {user.team_id} not found")
+            if not team.is_active:
+                raise ValidationException(f"Team {user.team_id} is deactivated and cannot be assigned")
 
         new_user = User(
             name=user.name,

@@ -82,3 +82,34 @@ class TestRegisterRoute:
         admin_client.post("/auth/register", json=payload)
         resp = admin_client.post("/auth/register", json=payload)
         assert resp.status_code == 400
+
+
+class TestLogoutRoute:
+    def test_logout_success(self, db):
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from app.dependencies.db import get_db
+        app.dependency_overrides[get_db] = lambda: db
+        client = TestClient(app, raise_server_exceptions=False)
+
+        # 1. Create a user and login
+        make_db_user(db, username="logoutuser", email="logout@t.com", password="password123")
+        db.commit()
+        resp = client.post("/auth/login", data={"username": "logoutuser", "password": "password123"})
+        token = resp.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        # 2. Verify token works
+        me_resp = client.get("/users/me", headers=headers)
+        assert me_resp.status_code == 200
+        
+        # 3. Logout
+        logout_resp = client.post("/auth/logout", headers=headers)
+        assert logout_resp.status_code == 200
+        assert "logged out" in logout_resp.json()["message"]
+        
+        # 4. Verify token no longer works
+        me_resp2 = client.get("/users/me", headers=headers)
+        assert me_resp2.status_code == 401
+        
+        app.dependency_overrides.clear()

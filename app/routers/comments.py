@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Query
 from sqlalchemy.orm import Session
 from app.core.limiter import limiter
 from app.dependencies.db import get_db
 from app.dependencies.user import get_current_user
 from app.models.userModel import User, UserRole
 from app.schemas.commentSchema import CommentCreate, CommentUpdate, CommentResponse
+from app.schemas.pagination import PaginatedResponse
 from app.services.commentService.admin import admin_comment_service
 from app.services.commentService.agent import agent_comment_service
 from app.services.commentService.employee import employee_comment_service
@@ -40,19 +41,21 @@ def create_comment(
     return service.create_comment(ticket_id, body, db, current_user)
 
 
-@router.get("/tickets/{ticket_id}/comments", response_model=list[CommentResponse])
+@router.get("/tickets/{ticket_id}/comments", response_model=PaginatedResponse[CommentResponse])
 @limiter.limit("30/minute")
 def get_ticket_comments(
     request: Request,
     ticket_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    limit: int = 10,
-    offset: int = 0,
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    sort_by: str = Query("created_at", description="Sort field: created_at, updated_at"),
+    order: str = Query("asc", description="Sort order: asc or desc"),
 ):
-    """Get all comments for a ticket. Behavior varies by role."""
+    """Get all comments for a ticket with sorting. Behavior varies by role."""
     service = _get_comment_service(current_user.role)
-    return service.get_ticket_comments(ticket_id, db, current_user, limit, offset)
+    return service.get_ticket_comments(ticket_id, db, current_user, limit, offset, sort_by, order)
 
 
 # ------------------------------------------------------------------ #

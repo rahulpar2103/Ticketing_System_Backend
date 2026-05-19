@@ -116,7 +116,7 @@ class TestAdminGetTeamMembers:
         db.commit()
         admin = make_fake_user(UserRole.admin)
         result = team_service_admin.get_team_members(team.id, admin, db, 10, 0)
-        assert len(result) == 2
+        assert len(result["items"]) == 2
 
 
 # ═══════════════════════════════════════════════════════════════════════════

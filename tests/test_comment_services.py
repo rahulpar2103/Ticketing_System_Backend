@@ -45,7 +45,7 @@ class TestAdminCommentRead:
         db.commit()
         fake = make_fake_user(UserRole.admin, user_id=admin.id)
         result = admin_comment_service.get_ticket_comments(ticket.id, db, fake, 10, 0)
-        assert len(result) == 2
+        assert len(result["items"]) == 2
 
     def test_get_single_comment(self, db):
         admin = make_db_user(db, role=UserRole.admin, username="adm", email="adm@t.com")

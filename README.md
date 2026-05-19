@@ -57,13 +57,15 @@ All account creation is admin-controlled. There is no self-registration.
 - **JWT Authentication** — login with username or email; tokens verified on every protected route
 - **Role-Based Access Control** — three roles with strictly scoped permissions enforced at the service layer
 - **Ticket Lifecycle** — state machine for status transitions with role-specific rules
+- **Search & Filtering** — tickets searchable by keyword (title/description), filterable by status, priority; users searchable by name/username/email, filterable by role, team, active status
+- **Sorting** — all list endpoints support `sort_by` and `order` query params with field validation
+- **Pagination Metadata** — all list endpoints return `{ items, total, limit, offset, has_more }` instead of bare arrays
 - **CORS Middleware** — configurable allowed origins for frontend integration
-- **Redis Caching** — list and detail responses cached with prefix-based invalidation on mutations
+- **Redis Caching** — detail responses cached with prefix-based invalidation on mutations
 - **Rate Limiting** — per-endpoint limits via `slowapi` (e.g., 5/min on login, 30/min on reads)
 - **Health Check** — `GET /health` checks API, database, and Redis connectivity
-- **Soft Deletes** — users, teams, and tickets are deactivated via `is_active` flag
+- **Soft Deletes** — users, teams, and tickets are deactivated via `is_active` flag; tickets deletable by all roles with role-specific rules
 - **Background Tasks** — welcome emails sent asynchronously on user creation
-- **Paginated Responses** — all list endpoints accept `limit` and `offset` query params
 - **Alembic Migrations** — schema changes are versioned and reproducible
 
 ---
@@ -81,6 +83,7 @@ All account creation is admin-controlled. There is no self-registration.
 | View teammate's profile | ✅ | ✅ (same team only) | ❌ |
 | Update any user (name, email, role, team) | ✅ | ❌ | ❌ |
 | Soft-delete a user | ✅ | ❌ | ❌ |
+| Reactivate a soft-deleted user | ✅ | ❌ | ❌ |
 | Reset any user's password (no current password needed) | ✅ | ❌ | ❌ |
 | Change own password (requires current password) | ✅ via reset | ✅ | ✅ |
 
@@ -93,7 +96,9 @@ All account creation is admin-controlled. There is no self-registration.
 | View any team by ID | ✅ | ❌ | ❌ |
 | View own team | ✅ | ✅ | ✅ (if assigned) |
 | Update team (name, description) | ✅ | ❌ | ❌ |
-| Delete team (soft-delete) | ✅ | ❌ | ❌ |
+| Delete team (soft-delete + cascade) | ✅ | ❌ | ❌ |
+| Reactivate a soft-deleted team | ✅ | ❌ | ❌ |
+| View team stats (ticket counts, member count) | ✅ | ❌ | ❌ |
 | View team members | ✅ (any team) | ✅ (own team) | ✅ (own team) |
 
 ### Tickets
@@ -106,6 +111,7 @@ All account creation is admin-controlled. There is no self-registration.
 | View ticket by ID | ✅ (any) | ✅ (accessible¹) | ✅ (created or assigned) |
 | View tickets by team | ✅ (any team) | ✅ (own team) | ❌ |
 | View tickets assigned to a specific user | ✅ | ❌ | ❌ |
+| Search/filter/sort tickets | ✅ (all tickets) | ✅ (accessible tickets) | ✅ (own tickets) |
 | Edit title/description | ✅ | ✅ (own created only) | ✅ (own created, open status only) |
 | Change priority | ✅ | ✅ (team tickets) | ❌ |
 | Change status | ✅ (any transition) | ✅ (valid transitions²) | ✅ (open → closed, resolved → closed) |
@@ -113,6 +119,9 @@ All account creation is admin-controlled. There is no self-registration.
 | Change team | ✅ | ✅ (transfers allowed³) | ❌ |
 | Unassign user (`assigned_to = -1`) | ✅ | ✅ (team tickets) | ❌ |
 | Remove team (`team_id = 0`) | ✅ | ❌ | ❌ |
+| Delete ticket (soft-delete) | ✅ (any ticket) | ✅ (accessible tickets) | ✅ (own open tickets only) |
+| Reactivate a soft-deleted ticket | ✅ | ❌ | ❌ |
+| View ticket stats (by status/priority) | ✅ | ❌ | ❌ |
 
 > ¹ **Accessible** for agents = ticket they created, are assigned to, or belongs to their team.  
 > ² **Valid transitions** for agents: `open → in_progress → resolved → closed` (strict state machine).  
@@ -175,6 +184,7 @@ Employee: open ──→ closed       (cancel / no longer needed)
 │   │   └── users.py              # User CRUD + password routes
 │   ├── schemas/
 │   │   ├── commentSchema.py      # CommentCreate, CommentUpdate, CommentResponse
+│   │   ├── pagination.py         # PaginatedResponse[T] generic wrapper
 │   │   ├── teamSchema.py         # TeamCreate, TeamUpdate, TeamResponse
 │   │   ├── ticketSchema.py       # TicketCreate, TicketUpdate, TicketResponse
 │   │   └── userSchema.py         # UserCreate, UserUpdate, UserResponse, etc.
@@ -318,52 +328,94 @@ All seeded users share the password: `Password@123`
 | Method | Endpoint | Description | Auth |
 |---|---|---|:---:|
 | `POST` | `/auth/login` | Login with username/email + password | No |
+| `POST` | `/auth/logout` | Revoke current access token | All roles |
 | `POST` | `/auth/register` | Create a new user account | Admin |
 
 ### Users
 
 | Method | Endpoint | Description | Auth |
 |---|---|---|:---:|
-| `GET` | `/users` | List all users (paginated) | Admin |
+| `GET` | `/users/me` | Get current user's profile | All roles |
+| `GET` | `/users` | List all users (paginated, searchable, filterable, sortable) | Admin |
 | `GET` | `/users/{id}` | Get user by ID | Role-scoped |
 | `PATCH` | `/users/{id}` | Update user profile | Admin |
 | `DELETE` | `/users/{id}` | Soft-delete user | Admin |
+| `PATCH` | `/users/{id}/reactivate` | Re-enable a soft-deleted user | Admin |
 | `PATCH` | `/users/{id}/password` | Change own password | Agent, Employee |
 | `PATCH` | `/users/{id}/reset-password` | Reset any user's password | Admin |
+
+#### User Query Parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `search` | `string` | Search by name, username, or email (case-insensitive) |
+| `role` | `string` | Filter by role (comma-separated, e.g. `admin,agent`) |
+| `team_id` | `int` | Filter by team (use `0` for unassigned) |
+| `is_active` | `bool` | Filter by active status |
+| `sort_by` | `string` | Sort field: `created_at`, `updated_at`, `name`, `username`, `email`, `role` |
+| `order` | `string` | `asc` or `desc` (default: `desc`) |
 
 ### Teams
 
 | Method | Endpoint | Description | Auth |
 |---|---|---|:---:|
 | `POST` | `/teams` | Create a team | Admin |
-| `GET` | `/teams` | List all teams (paginated) | Admin |
+| `GET` | `/teams` | List all teams (paginated, sortable) | Admin |
 | `GET` | `/teams/{id}` | Get team by ID | Role-scoped |
 | `PUT` | `/teams/{id}` | Update team | Admin |
-| `DELETE` | `/teams/{id}` | Soft-delete team | Admin |
-| `GET` | `/teams/{id}/members` | List team members | Role-scoped |
+| `DELETE` | `/teams/{id}` | Soft-delete team (cascades to users/tickets) | Admin |
+| `PATCH` | `/teams/{id}/reactivate` | Re-enable a soft-deleted team | Admin |
+| `GET` | `/teams/{id}/stats` | Get team ticket stats (by status, member count) | Admin |
+| `GET` | `/teams/{id}/members` | List team members (paginated, sortable) | Role-scoped |
 
 ### Tickets
 
 | Method | Endpoint | Description | Auth |
 |---|---|---|:---:|
 | `POST` | `/tickets` | Create a ticket | All roles |
-| `GET` | `/tickets` | List tickets visible to current user | All roles |
+| `GET` | `/tickets` | List tickets (paginated, searchable, filterable, sortable) | All roles |
 | `GET` | `/tickets/created-by-me` | Tickets created by current user | All roles |
 | `GET` | `/tickets/assigned-to-me` | Tickets assigned to current user | All roles |
 | `GET` | `/tickets/team/{team_id}` | Tickets for a team | Admin, Agent |
 | `GET` | `/tickets/user/{user_id}/assigned` | Tickets assigned to a specific user | Admin |
+| `GET` | `/tickets/stats` | Ticket stats by status/priority (optional `?team_id=`) | Admin |
 | `GET` | `/tickets/{id}` | Get ticket by ID | Role-scoped |
 | `PATCH` | `/tickets/{id}` | Update ticket | Role-scoped |
+| `DELETE` | `/tickets/{id}` | Soft-delete ticket | Role-scoped |
+| `PATCH` | `/tickets/{id}/reactivate` | Re-enable a soft-deleted ticket | Admin |
+
+#### Ticket Query Parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `search` | `string` | Search in title and description (case-insensitive) |
+| `status` | `string` | Filter by status (comma-separated, e.g. `open,in_progress`) |
+| `priority` | `string` | Filter by priority (comma-separated, e.g. `high,urgent`) |
+| `sort_by` | `string` | Sort field: `created_at`, `updated_at`, `priority`, `status`, `title` |
+| `order` | `string` | `asc` or `desc` (default: `desc`) |
 
 ### Comments
 
 | Method | Endpoint | Description | Auth |
 |---|---|---|:---:|
 | `POST` | `/tickets/{id}/comments` | Add comment to a ticket | Role-scoped |
-| `GET` | `/tickets/{id}/comments` | List comments on a ticket | Role-scoped |
+| `GET` | `/tickets/{id}/comments` | List comments (paginated, sortable) | Role-scoped |
 | `GET` | `/comments/{id}` | Get single comment | Role-scoped |
 | `PATCH` | `/comments/{id}` | Edit a comment | Role-scoped |
-| `DELETE` | `/comments/{id}` | Delete a comment | Admin, Agent |
+| `DELETE` | `/comments/{id}` | Delete a comment | Role-scoped |
+
+### Pagination Response Format
+
+All list endpoints return a paginated response:
+
+```json
+{
+  "items": [...],
+  "total": 42,
+  "limit": 10,
+  "offset": 0,
+  "has_more": true
+}
 
 ### System
 
@@ -432,7 +484,7 @@ When assigning a ticket to a user and a team simultaneously, the system validate
 
 ### Soft Deletes
 
-Users, teams, and tickets are never hard-deleted. Setting `is_active = False` removes them from all queries. Deleting a team also clears related ticket and user caches to prevent stale data.
+Users, teams, and tickets are never hard-deleted. Setting `is_active = False` removes them from all queries. Deleting a team cascades: all users in the team have their `team_id` cleared, and all active tickets for that team have their `team_id` and `assigned_to` cleared to prevent stale references. Soft-deleted resources can be re-enabled via `PATCH /{resource}/{id}/reactivate` (admin only).
 
 ### `resolved_at` Tracking
 
@@ -445,7 +497,6 @@ When a ticket's status is set to `resolved`, the `resolved_at` timestamp is auto
 - **Email integration** — replace the print stub `send_welcome_email` with a real SMTP client
 - **Containerization** — Dockerfile and docker-compose for PostgreSQL, Redis, and the API
 - **Refresh tokens** — current JWTs have no refresh mechanism
-- **Pagination metadata** — add `total`, `page`, `pages` to list responses
-- **Search and filtering** — add status/priority/date filters to ticket listings
 - **Audit logging** — track who changed what on a ticket
 - **WebSocket notifications** — real-time updates when tickets are assigned or status changes
+- **Bulk operations** — update/delete multiple tickets at once

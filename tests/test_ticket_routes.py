@@ -35,7 +35,7 @@ class TestGetTicketsRoute:
         db.commit()
         resp = admin_client.get("/tickets")
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
+        assert isinstance(resp.json()["items"], list)
 
 
 class TestGetSingleTicketRoute:
@@ -90,3 +90,22 @@ class TestTeamTicketsRoute:
         db.commit()
         resp = employee_client.get(f"/tickets/team/{team.id}")
         assert resp.status_code == 403
+
+
+class TestReactivateTicket:
+    def test_admin_reactivates_ticket(self, admin_client, db):
+        admin = make_db_user(db, role=UserRole.admin, username="adm2", email="adm2@t.com")
+        ticket = make_db_ticket(db, created_by=admin.id)
+        ticket.is_active = False
+        db.commit()
+        resp = admin_client.patch(f"/tickets/{ticket.id}/reactivate")
+        assert resp.status_code == 200
+        assert "reactivated" in resp.json()["message"]
+
+
+class TestTicketStats:
+    def test_admin_gets_ticket_stats(self, admin_client, db):
+        resp = admin_client.get("/tickets/stats")
+        assert resp.status_code == 200
+        assert "total" in resp.json()
+        assert "by_status" in resp.json()

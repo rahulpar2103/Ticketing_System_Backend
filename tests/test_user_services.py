@@ -44,8 +44,8 @@ class TestAdminGetAllUsers:
         admin = make_fake_user(UserRole.admin)
         page1 = user_service_admin.get_all_users(admin, db, limit=2, offset=0)
         page2 = user_service_admin.get_all_users(admin, db, limit=2, offset=2)
-        assert len(page1) == 2
-        assert len(page2) == 2
+        assert len(page1["items"]) == 2
+        assert len(page2["items"]) == 2
 
 
 class TestAdminGetUser:

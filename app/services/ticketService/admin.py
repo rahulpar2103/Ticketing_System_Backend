@@ -10,7 +10,10 @@ from app.models.teamModel import Team
 from app.models.userModel import User, UserRole
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
 from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
-from app.services.ticketService.utils import _build_response, _load_ticket, _load_tickets
+from app.services.ticketService.utils import (
+    _build_response, _load_ticket, _load_tickets,
+    apply_ticket_filters, apply_ticket_sorting, paginate_tickets,
+)
 from datetime import datetime, timezone
 
 class AdminTicketService:
@@ -30,11 +33,15 @@ class AdminTicketService:
             assigned_user = db.query(User).filter(User.id == ticket.assigned_to).first()
             if not assigned_user:
                 raise NotFoundException(f"User {ticket.assigned_to} not found")
+            if not assigned_user.is_active:
+                raise ValidationException(f"User {assigned_user.username} is deactivated and cannot be assigned")
 
         if ticket.team_id is not None:
             team = db.query(Team).filter(Team.id == ticket.team_id).first()
             if not team:
                 raise NotFoundException(f"Team {ticket.team_id} not found")
+            if not team.is_active:
+                raise ValidationException(f"Team {ticket.team_id} is deactivated and cannot be assigned")
 
             if assigned_user is not None and assigned_user.team_id != ticket.team_id:
                 raise ValidationException(
@@ -61,17 +68,18 @@ class AdminTicketService:
         delete_by_prefix("tickets:")
         return _build_response(new_ticket)
     
-    def get_all_tickets(self, db: Session, current_user: User, limit: int, offset: int):
+    def get_all_tickets(
+        self, db: Session, current_user: User, limit: int, offset: int,
+        search: str | None = None, status: str | None = None,
+        priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
+    ):
         if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
-        cache_key = f"tickets:all:{limit}:{offset}"
-        cached = safe_get(cache_key)
-        if cached:
-            return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = _load_tickets(db.query(Ticket).filter(Ticket.is_active == True)).limit(limit).offset(offset).all()
-        responses = [_build_response(t) for t in tickets]
-        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
-        return responses
+
+        query = db.query(Ticket).filter(Ticket.is_active == True)
+        query = apply_ticket_filters(query, search, status, priority)
+        query = apply_ticket_sorting(query, sort_by, order)
+        return paginate_tickets(query, limit, offset)
 
     def get_ticket(self, id: int, db: Session, current_user: User):
         if current_user.role != UserRole.admin:
@@ -87,64 +95,68 @@ class AdminTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps(response.model_dump(mode="json")))
         return response
 
-    def get_assigned_tickets(self, db: Session, current_user: User, limit: int, offset: int):
+    def get_assigned_tickets(
+        self, db: Session, current_user: User, limit: int, offset: int,
+        search: str | None = None, status: str | None = None,
+        priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
+    ):
         if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
-        cache_key = f"tickets:assigned_to_me:{current_user.id}:{limit}:{offset}"
-        cached = safe_get(cache_key)
-        if cached:
-            return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.assigned_to == current_user.id, Ticket.is_active == True)
-        ).limit(limit).offset(offset).all()
-        responses = [_build_response(t) for t in tickets]
-        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
-        return responses
 
-    def get_created_tickets(self, db: Session, current_user: User, limit: int, offset: int):
+        query = db.query(Ticket).filter(
+            Ticket.assigned_to == current_user.id, Ticket.is_active == True
+        )
+        query = apply_ticket_filters(query, search, status, priority)
+        query = apply_ticket_sorting(query, sort_by, order)
+        return paginate_tickets(query, limit, offset)
+
+    def get_created_tickets(
+        self, db: Session, current_user: User, limit: int, offset: int,
+        search: str | None = None, status: str | None = None,
+        priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
+    ):
         if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
-        cache_key = f"tickets:created:{current_user.id}:{limit}:{offset}"
-        cached = safe_get(cache_key)
-        if cached:
-            return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.created_by == current_user.id, Ticket.is_active == True)
-        ).limit(limit).offset(offset).all()
-        responses = [_build_response(t) for t in tickets]
-        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
-        return responses
 
-    def get_team_tickets(self, team_id: int, db: Session, current_user: User, limit: int, offset: int):
+        query = db.query(Ticket).filter(
+            Ticket.created_by == current_user.id, Ticket.is_active == True
+        )
+        query = apply_ticket_filters(query, search, status, priority)
+        query = apply_ticket_sorting(query, sort_by, order)
+        return paginate_tickets(query, limit, offset)
+
+    def get_team_tickets(
+        self, team_id: int, db: Session, current_user: User, limit: int, offset: int,
+        search: str | None = None, status: str | None = None,
+        priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
+    ):
         if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
         team = db.query(Team).filter(Team.id == team_id).first()
         if not team:
             raise NotFoundException(f"Team {team_id} not found")
-        cache_key = f"tickets:team:{team_id}:{limit}:{offset}"
-        cached = safe_get(cache_key)
-        if cached:
-            return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.team_id == team_id, Ticket.is_active == True)
-        ).limit(limit).offset(offset).all()
-        responses = [_build_response(t) for t in tickets]
-        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
-        return responses
 
-    def get_tickets_assigned_to_user(self, user_id: int, db: Session, current_user: User, limit: int, offset: int):
+        query = db.query(Ticket).filter(
+            Ticket.team_id == team_id, Ticket.is_active == True
+        )
+        query = apply_ticket_filters(query, search, status, priority)
+        query = apply_ticket_sorting(query, sort_by, order)
+        return paginate_tickets(query, limit, offset)
+
+    def get_tickets_assigned_to_user(
+        self, user_id: int, db: Session, current_user: User, limit: int, offset: int,
+        search: str | None = None, status: str | None = None,
+        priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
+    ):
         if current_user.role != UserRole.admin:
             raise PermissionDeniedException("Not allowed to access this endpoint")
-        cache_key = f"tickets:assigned_to_user:{user_id}:{limit}:{offset}"
-        cached = safe_get(cache_key)
-        if cached:
-            return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.assigned_to == user_id, Ticket.is_active == True)
-        ).limit(limit).offset(offset).all()
-        responses = [_build_response(t) for t in tickets]
-        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
-        return responses
+
+        query = db.query(Ticket).filter(
+            Ticket.assigned_to == user_id, Ticket.is_active == True
+        )
+        query = apply_ticket_filters(query, search, status, priority)
+        query = apply_ticket_sorting(query, sort_by, order)
+        return paginate_tickets(query, limit, offset)
 
     def update_ticket(self, id: int, ticket_update: TicketUpdate, db: Session, current_user: User):
         if current_user.role != UserRole.admin:
@@ -178,12 +190,16 @@ class AdminTicketService:
             new_assignee = db.query(User).filter(User.id == ticket_update.assigned_to).first()
             if not new_assignee:
                 raise NotFoundException(f"User {ticket_update.assigned_to} not found")
+            if not new_assignee.is_active:
+                raise ValidationException(f"User {new_assignee.username} is deactivated and cannot be assigned")
 
         new_team = None
         if ticket_update.team_id is not None:
             new_team = db.query(Team).filter(Team.id == ticket_update.team_id).first()
             if not new_team:
                 raise NotFoundException(f"Team {ticket_update.team_id} not found")
+            if not new_team.is_active:
+                raise ValidationException(f"Team {ticket_update.team_id} is deactivated and cannot be assigned")
 
         if unassign_team:
             ticket.team_id = None
@@ -225,4 +241,88 @@ class AdminTicketService:
         safe_delete(f"ticket:{id}")
         delete_by_prefix("tickets:")
         return _build_response(ticket)
+
+    def delete_ticket(self, id: int, db: Session, current_user: User):
+        """Soft-delete a ticket. Admin only."""
+        if current_user.role != UserRole.admin:
+            raise PermissionDeniedException("Not allowed to access this endpoint")
+        ticket = db.query(Ticket).filter(Ticket.id == id, Ticket.is_active == True).first()
+        if not ticket:
+            raise NotFoundException(f"Ticket {id} not found")
+        ticket.is_active = False
+        db.commit()
+        safe_delete(f"ticket:{id}")
+        delete_by_prefix("tickets:")
+        delete_by_prefix(f"comments:ticket:{id}:")
+        return {"message": f"Ticket {id} deleted successfully"}
+
+    def get_ticket_stats(self, db: Session, current_user: User, team_id: int | None = None):
+        """Get ticket statistics (counts by status and priority). Admin only."""
+        if current_user.role != UserRole.admin:
+            raise PermissionDeniedException("Not allowed to access this endpoint")
+
+        from app.models.ticketModel import Priority
+        from sqlalchemy import func
+
+        query = db.query(Ticket).filter(Ticket.is_active == True)
+        if team_id is not None:
+            team = db.query(Team).filter(Team.id == team_id).first()
+            if not team:
+                raise NotFoundException(f"Team {team_id} not found")
+            query = query.filter(Ticket.team_id == team_id)
+
+        total = query.count()
+
+        # By status
+        status_counts = {}
+        status_rows = (
+            db.query(Ticket.status, func.count(Ticket.id))
+            .filter(Ticket.is_active == True, *([Ticket.team_id == team_id] if team_id else []))
+            .group_by(Ticket.status)
+            .all()
+        )
+        for s in TicketStatus:
+            status_counts[s.value] = 0
+        for status, count in status_rows:
+            status_counts[status.value] = count
+
+        # By priority
+        priority_counts = {}
+        priority_rows = (
+            db.query(Ticket.priority, func.count(Ticket.id))
+            .filter(Ticket.is_active == True, *([Ticket.team_id == team_id] if team_id else []))
+            .group_by(Ticket.priority)
+            .all()
+        )
+        for p in Priority:
+            priority_counts[p.value] = 0
+        for priority, count in priority_rows:
+            priority_counts[priority.value] = count
+
+        # Unassigned count
+        unassigned_filter = [Ticket.is_active == True, Ticket.assigned_to == None]
+        if team_id:
+            unassigned_filter.append(Ticket.team_id == team_id)
+        unassigned = db.query(Ticket).filter(*unassigned_filter).count()
+
+        return {
+            "total": total,
+            "by_status": status_counts,
+            "by_priority": priority_counts,
+            "unassigned": unassigned,
+        }
+
+    def reactivate_ticket(self, id: int, db: Session, current_user: User):
+        """Re-enable a soft-deleted ticket. Admin only."""
+        if current_user.role != UserRole.admin:
+            raise PermissionDeniedException("Not allowed to access this endpoint")
+        ticket = db.query(Ticket).filter(Ticket.id == id, Ticket.is_active == False).first()
+        if not ticket:
+            raise NotFoundException(f"Ticket {id} not found or is already active")
+        ticket.is_active = True
+        db.commit()
+        safe_delete(f"ticket:{id}")
+        delete_by_prefix("tickets:")
+        return {"message": f"Ticket {id} reactivated successfully"}
+
 ticket_service_admin = AdminTicketService()

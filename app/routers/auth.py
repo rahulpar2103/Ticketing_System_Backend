@@ -8,6 +8,9 @@ from app.services.userServices.auth import auth_service
 from app.schemas.userSchema import UserCreate, UserResponse, TokenResponse
 from fastapi import BackgroundTasks
 from app.core.email import send_welcome_email
+from app.db.redis import safe_setex
+from app.core.config import settings
+from app.dependencies.user import oauth2_scheme
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -33,3 +36,9 @@ def register(
         password=user.password,
     )
     return new_user
+
+@router.post("/logout", status_code=200)
+@limiter.limit("5/minute")
+def logout(request: Request, token: str = Depends(oauth2_scheme)):
+    safe_setex(f"blocklist:{token}", settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60, "revoked")
+    return {"message": "Successfully logged out"}

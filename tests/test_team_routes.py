@@ -71,4 +71,24 @@ class TestGetTeamMembers:
         db.commit()
         resp = admin_client.get(f"/teams/{team.id}/members")
         assert resp.status_code == 200
-        assert len(resp.json()) >= 1
+        assert len(resp.json()["items"]) >= 1
+
+
+class TestReactivateTeam:
+    def test_admin_reactivates_team(self, admin_client, db):
+        team = make_db_team(db, name="Inactive")
+        team.is_active = False
+        db.commit()
+        resp = admin_client.patch(f"/teams/{team.id}/reactivate")
+        assert resp.status_code == 200
+        assert "reactivated" in resp.json()["message"]
+
+
+class TestTeamStats:
+    def test_admin_gets_team_stats(self, admin_client, db):
+        team = make_db_team(db, name="Stats")
+        db.commit()
+        resp = admin_client.get(f"/teams/{team.id}/stats")
+        assert resp.status_code == 200
+        assert resp.json()["team_id"] == team.id
+        assert "total_tickets" in resp.json()

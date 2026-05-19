@@ -10,7 +10,10 @@ from app.models.teamModel import Team
 from app.models.userModel import User, UserRole
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
 from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
-from app.services.ticketService.utils import _build_response, _load_ticket, _load_tickets
+from app.services.ticketService.utils import (
+    _build_response, _load_ticket, _load_tickets,
+    apply_ticket_filters, apply_ticket_sorting, paginate_tickets,
+)
 from datetime import datetime, timezone
 
 VALID_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
@@ -51,6 +54,8 @@ class AgentTicketService:
             assigned_user = db.query(User).filter(User.id == ticket.assigned_to).first()
             if not assigned_user:
                 raise NotFoundException(f"User {ticket.assigned_to} not found")
+            if not assigned_user.is_active:
+                raise ValidationException(f"User {assigned_user.username} is deactivated and cannot be assigned")
             if assigned_user.team_id != current_user.team_id:
                 raise PermissionDeniedException("You can only assign tickets to members of your own team")
 
@@ -58,6 +63,8 @@ class AgentTicketService:
             team = db.query(Team).filter(Team.id == ticket.team_id).first()
             if not team:
                 raise NotFoundException(f"Team {ticket.team_id} not found")
+            if not team.is_active:
+                raise ValidationException(f"Team {ticket.team_id} is deactivated and cannot be assigned")
             if assigned_user is not None and assigned_user.team_id != ticket.team_id:
                 raise ValidationException(
                     f"User {assigned_user.username} does not belong to team {ticket.team_id}"
@@ -83,25 +90,22 @@ class AgentTicketService:
         delete_by_prefix("tickets:")
         return _build_response(new_ticket)
 
-    def get_my_tickets(self, db: Session, current_user: User, limit: int, offset: int):
+    def get_my_tickets(
+        self, db: Session, current_user: User, limit: int, offset: int,
+        search: str | None = None, status: str | None = None,
+        priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
+    ):
         """All tickets the agent created, is assigned to, or that belong to their team."""
         self._require_agent(current_user)
-        cache_key = f"tickets:agent:{current_user.id}:{limit}:{offset}"
-        cached = safe_get(cache_key)
-        if cached:
-            return [TicketResponse.model_validate(t) for t in json.loads(cached)]
 
         filters = [Ticket.created_by == current_user.id, Ticket.assigned_to == current_user.id]
         if current_user.team_id is not None:
             filters.append(Ticket.team_id == current_user.team_id)
 
-        tickets = _load_tickets(
-            db.query(Ticket).filter(or_(*filters), Ticket.is_active == True)
-        ).limit(limit).offset(offset).all()
-
-        responses = [_build_response(t) for t in tickets]
-        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
-        return responses
+        query = db.query(Ticket).filter(or_(*filters), Ticket.is_active == True)
+        query = apply_ticket_filters(query, search, status, priority)
+        query = apply_ticket_sorting(query, sort_by, order)
+        return paginate_tickets(query, limit, offset)
 
     def get_ticket(self, id: int, db: Session, current_user: User):
         self._require_agent(current_user)
@@ -131,47 +135,50 @@ class AgentTicketService:
         safe_setex(cache_key, 60 * 60, json.dumps(response.model_dump(mode="json")))
         return response
 
-    def get_created_tickets(self, db: Session, current_user: User, limit: int, offset: int):
+    def get_created_tickets(
+        self, db: Session, current_user: User, limit: int, offset: int,
+        search: str | None = None, status: str | None = None,
+        priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
+    ):
         self._require_agent(current_user)
-        cache_key = f"tickets:created:{current_user.id}:{limit}:{offset}"
-        cached = safe_get(cache_key)
-        if cached:
-            return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.created_by == current_user.id, Ticket.is_active == True)
-        ).limit(limit).offset(offset).all()
-        responses = [_build_response(t) for t in tickets]
-        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
-        return responses
 
-    def get_assigned_tickets(self, db: Session, current_user: User, limit: int, offset: int):
+        query = db.query(Ticket).filter(
+            Ticket.created_by == current_user.id, Ticket.is_active == True
+        )
+        query = apply_ticket_filters(query, search, status, priority)
+        query = apply_ticket_sorting(query, sort_by, order)
+        return paginate_tickets(query, limit, offset)
+
+    def get_assigned_tickets(
+        self, db: Session, current_user: User, limit: int, offset: int,
+        search: str | None = None, status: str | None = None,
+        priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
+    ):
         self._require_agent(current_user)
-        cache_key = f"tickets:assigned:{current_user.id}:{limit}:{offset}"
-        cached = safe_get(cache_key)
-        if cached:
-            return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.assigned_to == current_user.id, Ticket.is_active == True)
-        ).limit(limit).offset(offset).all()
-        responses = [_build_response(t) for t in tickets]
-        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
-        return responses
 
-    def get_team_tickets(self, db: Session, current_user: User, limit: int, offset: int):
+        query = db.query(Ticket).filter(
+            Ticket.assigned_to == current_user.id, Ticket.is_active == True
+        )
+        query = apply_ticket_filters(query, search, status, priority)
+        query = apply_ticket_sorting(query, sort_by, order)
+        return paginate_tickets(query, limit, offset)
+
+    def get_team_tickets(
+        self, db: Session, current_user: User, limit: int, offset: int,
+        search: str | None = None, status: str | None = None,
+        priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
+    ):
         """Own team tickets only."""
         self._require_agent(current_user)
         if current_user.team_id is None:
             raise PermissionDeniedException("You are not assigned to a team")
-        cache_key = f"tickets:team:{current_user.team_id}:{limit}:{offset}"
-        cached = safe_get(cache_key)
-        if cached:
-            return [TicketResponse.model_validate(t) for t in json.loads(cached)]
-        tickets = _load_tickets(
-            db.query(Ticket).filter(Ticket.team_id == current_user.team_id, Ticket.is_active == True)
-        ).limit(limit).offset(offset).all()
-        responses = [_build_response(t) for t in tickets]
-        safe_setex(cache_key, 60 * 60, json.dumps([r.model_dump(mode="json") for r in responses]))
-        return responses
+
+        query = db.query(Ticket).filter(
+            Ticket.team_id == current_user.team_id, Ticket.is_active == True
+        )
+        query = apply_ticket_filters(query, search, status, priority)
+        query = apply_ticket_sorting(query, sort_by, order)
+        return paginate_tickets(query, limit, offset)
 
     def update_ticket(self, id: int, ticket_update: TicketUpdate, db: Session, current_user: User):
         self._require_agent(current_user)
@@ -206,7 +213,7 @@ class AgentTicketService:
             allowed = VALID_TRANSITIONS.get(ticket.status, set())
             if ticket_update.status not in allowed:
                 raise ValidationException(
-                    f"Invalid transition: '{ticket.status.value}' \u2192 '{ticket_update.status.value}'. "
+                    f"Invalid transition: '{ticket.status.value}' → '{ticket_update.status.value}'. "
                     f"Allowed: {[s.value for s in allowed] or 'none (terminal state)'}"
                 )
             ticket.status = ticket_update.status
@@ -223,6 +230,8 @@ class AgentTicketService:
             target = db.query(User).filter(User.id == ticket_update.assigned_to).first()
             if not target:
                 raise NotFoundException(f"User {ticket_update.assigned_to} not found")
+            if not target.is_active:
+                raise ValidationException(f"User {target.username} is deactivated and cannot be assigned")
             if target.team_id != current_user.team_id:
                 raise PermissionDeniedException("You can only assign tickets to members of your own team")
             ticket.assigned_to = ticket_update.assigned_to
@@ -233,6 +242,8 @@ class AgentTicketService:
             team = db.query(Team).filter(Team.id == ticket_update.team_id).first()
             if not team:
                 raise NotFoundException(f"Team {ticket_update.team_id} not found")
+            if not team.is_active:
+                raise ValidationException(f"Team {ticket_update.team_id} is deactivated and cannot be assigned")
             ticket.team_id = ticket_update.team_id
             ticket.assigned_to = None
 
@@ -244,5 +255,20 @@ class AgentTicketService:
         safe_delete(f"ticket:{id}")
         delete_by_prefix("tickets:")
         return _build_response(ticket)
+
+    def delete_ticket(self, id: int, db: Session, current_user: User):
+        """Soft-delete a ticket. Agent can delete tickets in their team or that they created."""
+        self._require_agent(current_user)
+        ticket = db.query(Ticket).filter(Ticket.id == id, Ticket.is_active == True).first()
+        if not ticket:
+            raise NotFoundException(f"Ticket {id} not found")
+        if not self._is_accessible(ticket, current_user):
+            raise PermissionDeniedException("You do not have access to this ticket")
+        ticket.is_active = False
+        db.commit()
+        safe_delete(f"ticket:{id}")
+        delete_by_prefix("tickets:")
+        delete_by_prefix(f"comments:ticket:{id}:")
+        return {"message": f"Ticket {id} deleted successfully"}
 
 ticket_service_agent = AgentTicketService()

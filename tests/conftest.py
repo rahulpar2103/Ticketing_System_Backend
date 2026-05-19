@@ -56,10 +56,21 @@ def db():
 @pytest.fixture(autouse=True)
 def _mock_redis():
     """Disable Redis for all tests — services fall back to DB queries."""
+    mock_store = {}
+
+    def mock_get(key):
+        return mock_store.get(key)
+
+    def mock_setex(key, ttl, value):
+        mock_store[key] = value
+
+    def mock_delete(key):
+        mock_store.pop(key, None)
+
     with (
-        patch("app.db.redis.safe_get", return_value=None),
-        patch("app.db.redis.safe_setex"),
-        patch("app.db.redis.safe_delete"),
+        patch("app.db.redis.safe_get", side_effect=mock_get),
+        patch("app.db.redis.safe_setex", side_effect=mock_setex),
+        patch("app.db.redis.safe_delete", side_effect=mock_delete),
         patch("app.db.redis.delete_by_prefix"),
     ):
         yield

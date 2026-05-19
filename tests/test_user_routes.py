@@ -15,7 +15,7 @@ class TestGetAllUsers:
         db.commit()
         resp = admin_client.get("/users")
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
+        assert isinstance(resp.json()["items"], list)
 
     def test_agent_gets_403(self, agent_client):
         resp = agent_client.get("/users")
@@ -137,3 +137,13 @@ class TestCreateUserRoute:
         }
         resp = employee_client.post("/auth/register", json=payload)
         assert resp.status_code == 403
+
+
+class TestReactivateUser:
+    def test_admin_reactivates_user(self, admin_client, db):
+        user = make_db_user(db, username="del2", email="del2@t.com")
+        user.is_active = False
+        db.commit()
+        resp = admin_client.patch(f"/users/{user.id}/reactivate")
+        assert resp.status_code == 200
+        assert "reactivated" in resp.json()["message"]
