@@ -46,6 +46,8 @@ class TicketUpdate(BaseModel):
     @field_validator("title", "description", mode="before")
     @classmethod
     def strip_and_reject_empty(cls, v: str) -> str:
+        if v is None:
+            return v
         if not isinstance(v, str):
             raise ValueError("Must be a string")
         v = v.strip()
@@ -74,6 +76,7 @@ class TicketResponse(BaseModel):
     status: TicketStatus
     priority: Priority
     created_by: int
+    created_by_username: str | None = None
     assigned_to: int | None = None
     assigned_to_username: str | None = None
     team_id: int | None = None
@@ -81,5 +84,6 @@ class TicketResponse(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
     resolved_at: datetime | None = None
+    comment_count: int = 0
 
     model_config = {"from_attributes": True}

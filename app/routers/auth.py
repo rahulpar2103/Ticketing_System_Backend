@@ -8,17 +8,20 @@ from app.services.userServices.auth import auth_service
 from app.schemas.userSchema import UserCreate, UserResponse, TokenResponse
 from fastapi import BackgroundTasks
 from app.core.email import send_welcome_email
+from app.db.redis import safe_setex
+from app.core.config import settings
+from app.dependencies.user import oauth2_scheme
 
-router = APIRouter(tags=["Auth"])
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
 def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     return auth_service.login(form_data, db)
 
-@router.post("/create", status_code=201, response_model=UserResponse)
+@router.post("/register", status_code=201, response_model=UserResponse)
 @limiter.limit("20/minute")
-def create_user(
+def register(
     request: Request,
     user: UserCreate,
     background_tasks: BackgroundTasks,
@@ -33,3 +36,9 @@ def create_user(
         password=user.password,
     )
     return new_user
+
+@router.post("/logout", status_code=200)
+@limiter.limit("5/minute")
+def logout(request: Request, token: str = Depends(oauth2_scheme)):
+    safe_setex(f"blocklist:{token}", settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60, "revoked")
+    return {"message": "Successfully logged out"}

@@ -6,10 +6,14 @@ from app.core.security import verify_access_token
 from app.core.exceptions import SessionException
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from app.db.redis import safe_get
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    if safe_get(f"blocklist:{token}"):
+        raise SessionException("Token has been revoked")
+        
     try:
         username = verify_access_token(token)
     except ValueError:

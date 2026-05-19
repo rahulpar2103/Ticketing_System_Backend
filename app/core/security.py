@@ -3,6 +3,8 @@ import jwt
 from jwt.exceptions import InvalidTokenError
 from datetime import datetime, timedelta, timezone
 from app.core.config import settings
+from app.models.userModel import User, UserRole
+from app.core.exceptions import PermissionDeniedException
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -27,3 +29,10 @@ def verify_access_token(token: str) -> str:
         return username
     except InvalidTokenError:
         raise ValueError("Invalid token")
+
+def require_role(current_user: User, allowed_roles: UserRole | list[UserRole]):
+    """Ensure the user has one of the allowed roles, else raise PermissionDeniedException."""
+    if isinstance(allowed_roles, UserRole):
+        allowed_roles = [allowed_roles]
+    if current_user.role not in allowed_roles:
+        raise PermissionDeniedException("Not allowed to access this endpoint")
