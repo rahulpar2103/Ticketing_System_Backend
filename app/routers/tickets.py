@@ -24,9 +24,7 @@ def _get_ticket_service(role: UserRole):
     return services[role]
 
 
-# ------------------------------------------------------------------ #
-# CREATE                                                               #
-# ------------------------------------------------------------------ #
+
 
 @router.post("", status_code=201, response_model=TicketResponse)
 @limiter.limit("30/minute")
@@ -41,9 +39,7 @@ def create_ticket(
     return service.create_ticket(ticket, db, current_user)
 
 
-# ------------------------------------------------------------------ #
-# READ                                                                 #
-# ------------------------------------------------------------------ #
+
 
 @router.get("", response_model=PaginatedResponse[TicketResponse])
 @limiter.limit("30/minute")
@@ -213,9 +209,7 @@ def get_ticket_history(
     return get_ticket_audit_logs(ticket_id, db, current_user, limit, offset)
 
 
-# ------------------------------------------------------------------ #
-# UPDATE                                                               #
-# ------------------------------------------------------------------ #
+
 
 @router.patch("/{ticket_id}", response_model=TicketResponse)
 @limiter.limit("20/minute")
@@ -231,9 +225,7 @@ def update_ticket(
     return service.update_ticket(ticket_id, ticket, db, current_user)
 
 
-# ------------------------------------------------------------------ #
-# DELETE                                                               #
-# ------------------------------------------------------------------ #
+
 
 @router.delete("/{ticket_id}", response_model=dict)
 @limiter.limit("20/minute")
@@ -253,9 +245,7 @@ def delete_ticket(
     return service.delete_ticket(ticket_id, db, current_user)
 
 
-# ------------------------------------------------------------------ #
-# REACTIVATE                                                          #
-# ------------------------------------------------------------------ #
+
 
 @router.patch("/{ticket_id}/reactivate", response_model=dict)
 @limiter.limit("20/minute")

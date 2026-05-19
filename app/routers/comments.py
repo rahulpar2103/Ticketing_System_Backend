@@ -23,9 +23,7 @@ def _get_comment_service(role: UserRole):
     return services[role]
 
 
-# ------------------------------------------------------------------ #
-# Ticket-scoped comment routes                                        #
-# ------------------------------------------------------------------ #
+# Ticket-scoped comments
 
 @router.post("/tickets/{ticket_id}/comments", status_code=201, response_model=CommentResponse)
 @limiter.limit("30/minute")
@@ -58,9 +56,7 @@ def get_ticket_comments(
     return service.get_ticket_comments(ticket_id, db, current_user, limit, offset, sort_by, order)
 
 
-# ------------------------------------------------------------------ #
-# Individual comment routes                                            #
-# ------------------------------------------------------------------ #
+# Individual comment actions
 
 @router.get("/comments/{comment_id}", response_model=CommentResponse)
 @limiter.limit("30/minute")

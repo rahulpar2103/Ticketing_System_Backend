@@ -26,14 +26,12 @@ class EmployeeTicketService:
             or ticket.assigned_to == current_user.id
         )
 
-    # ------------------------------------------------------------------ #
-    # CREATE                                                               #
-    # ------------------------------------------------------------------ #
+
 
     def create_ticket(self, ticket: TicketCreate, db: Session, current_user: User):
         self._require_employee(current_user)
 
-        # Employees cannot set assignee or team
+
         if ticket.assigned_to is not None:
             raise PermissionDeniedException("Employees cannot set an assignee on ticket creation")
         if ticket.team_id is not None:
@@ -53,9 +51,7 @@ class EmployeeTicketService:
         delete_by_prefix("tickets:")
         return _build_response(new_ticket)
 
-    # ------------------------------------------------------------------ #
-    # READ                                                                 #
-    # ------------------------------------------------------------------ #
+
 
     def get_my_tickets(
         self, db: Session, current_user: User, limit: int, offset: int,
@@ -124,9 +120,7 @@ class EmployeeTicketService:
         query = apply_ticket_sorting(query, sort_by, order)
         return paginate_tickets(query, limit, offset)
 
-    # ------------------------------------------------------------------ #
-    # UPDATE                                                               #
-    # ------------------------------------------------------------------ #
+
 
     def update_ticket(self, id: int, ticket_update: TicketUpdate, db: Session, current_user: User):
         self._require_employee(current_user)
@@ -135,11 +129,10 @@ class EmployeeTicketService:
         if not ticket:
             raise NotFoundException(f"Ticket {id} not found")
 
-        # Employees can only edit their own created tickets
         if ticket.created_by != current_user.id:
             raise PermissionDeniedException("You can only edit tickets you created")
 
-        # title / description — own ticket, open status only
+        # Check ownership and edit permissions on title/description
         if ticket_update.title is not None or ticket_update.description is not None:
             if ticket.status != TicketStatus.open:
                 raise PermissionDeniedException("You can only edit title or description on open tickets")
@@ -148,11 +141,11 @@ class EmployeeTicketService:
             if ticket_update.description is not None:
                 ticket.description = ticket_update.description
 
-        # priority — not allowed
+        # Priority changes are not allowed for employees
         if ticket_update.priority is not None:
             raise PermissionDeniedException("Employees cannot change ticket priority")
 
-        # status — open → closed (cancel) or resolved → closed (confirm fix)
+        # Employees can only change status: open -> closed or resolved -> closed
         if ticket_update.status is not None:
             allowed_transitions = {
                 TicketStatus.open: TicketStatus.closed,
@@ -165,11 +158,8 @@ class EmployeeTicketService:
                 )
             ticket.status = ticket_update.status
 
-        # assigned_to — not allowed
         if ticket_update.assigned_to is not None:
             raise PermissionDeniedException("Employees cannot reassign tickets")
-
-        # team_id — not allowed
         if ticket_update.team_id is not None:
             raise PermissionDeniedException("Employees cannot transfer tickets to a team")
 
@@ -182,9 +172,7 @@ class EmployeeTicketService:
         delete_by_prefix("tickets:")
         return _build_response(ticket)
 
-    # ------------------------------------------------------------------ #
-    # DELETE                                                               #
-    # ------------------------------------------------------------------ #
+
 
     def delete_ticket(self, id: int, db: Session, current_user: User):
         """Soft-delete a ticket. Employee can only delete their own open tickets."""

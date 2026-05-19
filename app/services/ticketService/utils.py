@@ -46,9 +46,7 @@ def _load_tickets(query):
     )
 
 
-# ------------------------------------------------------------------ #
-# Search, Filter, Sort helpers                                         #
-# ------------------------------------------------------------------ #
+# Ticket search, filter, and sorting utilities
 
 # Fields allowed for sorting on tickets
 TICKET_SORTABLE_FIELDS = {
