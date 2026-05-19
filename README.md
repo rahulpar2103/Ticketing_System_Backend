@@ -424,6 +424,7 @@ All list endpoints return a paginated response:
   "offset": 0,
   "has_more": true
 }
+```
 
 ### System
 
