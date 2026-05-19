@@ -82,14 +82,13 @@ class AgentTicketService:
             created_by=current_user.id,
         )
         db.add(new_ticket)
-        db.commit()
+        db.flush()
         
-        ticket_id = new_ticket.id
-        log_audit_event(db, ticket_id, current_user, "CREATED")
+        log_audit_event(db, new_ticket.id, current_user, "CREATED")
         db.commit()
-        new_ticket = _load_ticket(db, ticket_id)
+        new_ticket = _load_ticket(db, new_ticket.id)
         if not new_ticket:
-            raise NotFoundException(f"Ticket {ticket_id} not found")
+            raise NotFoundException(f"Ticket {new_ticket.id} not found")
         delete_by_prefix("tickets:")
         return _build_response(new_ticket)
 
@@ -270,7 +269,6 @@ class AgentTicketService:
         if not self._is_accessible(ticket, current_user):
             raise PermissionDeniedException("You do not have access to this ticket")
         ticket.is_active = False
-        db.commit()
         log_audit_event(db, id, current_user, "DELETED")
         db.commit()
         safe_delete(f"ticket:{id}")

@@ -40,3 +40,15 @@ class Ticket(Base):
 
     def __repr__(self):
         return f"<Ticket(id={self.id}, title='{self.title}', status='{self.status}')>"
+
+# Define column property after Ticket class to avoid compile circular imports
+from sqlalchemy.orm import column_property
+from sqlalchemy import select
+from app.models.commentModel import Comment
+
+Ticket.comment_count = column_property(
+    select(func.count(Comment.id))
+    .where(Comment.ticket_id == Ticket.id)
+    .correlate_except(Comment)
+    .scalar_subquery()
+)

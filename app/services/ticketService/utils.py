@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, asc, desc
 from app.models.ticketModel import Ticket, TicketStatus, Priority
 from app.schemas.ticketSchema import TicketResponse
@@ -21,8 +21,9 @@ def _build_response(ticket: Ticket) -> TicketResponse:
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
         resolved_at=ticket.resolved_at,
-        comment_count=len(ticket.comments) if hasattr(ticket, 'comments') else 0,
+        comment_count=ticket.comment_count if hasattr(ticket, 'comment_count') else 0,
     )
+
 
 def _load_ticket(db: Session, ticket_id: int):
     return (
@@ -31,18 +32,17 @@ def _load_ticket(db: Session, ticket_id: int):
             joinedload(Ticket.assigned_user),
             joinedload(Ticket.created_by_user),
             joinedload(Ticket.team),
-            selectinload(Ticket.comments),
         )
         .filter(Ticket.id == ticket_id, Ticket.is_active == True)
         .first()
     )
+
 
 def _load_tickets(query):
     return query.options(
         joinedload(Ticket.assigned_user),
         joinedload(Ticket.created_by_user),
         joinedload(Ticket.team),
-        selectinload(Ticket.comments),
     )
 
 

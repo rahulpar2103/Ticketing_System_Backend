@@ -14,29 +14,25 @@ from app.db.redis import safe_get, safe_setex
 
 class UserServiceAgent:
     def get_user(self, current_user, user_id: int, db: Session) -> UserResponse:
+        require_role(current_user, UserRole.agent)
+        
         cache_key = f"user:{user_id}"
         cached_data = safe_get(cache_key)
-        target_user = UserResponse.model_validate(json.loads(cached_data)) if cached_data else None
+        
+        if cached_data:
+            target_user = UserResponse.model_validate(json.loads(cached_data))
+        else:
+            db_user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
+            if not db_user:
+                raise NotFoundException("User not found")
+            target_user = UserResponse.model_validate(db_user)
+            safe_setex(cache_key, 60 * 60, json.dumps(target_user.model_dump(mode="json")))
 
-        if current_user.role == UserRole.agent:
-            if current_user.id != user_id:
-                if target_user is None:
-                    target_user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
-                    if not target_user:
-                        raise NotFoundException("User not found")
-                if current_user.team_id is None or current_user.team_id != target_user.team_id:
-                    raise PermissionDeniedException("You can only view your own profile or your teammates.")
-        elif current_user.role == UserRole.employee or current_user.role == UserRole.admin:
-            raise PermissionDeniedException("Not authorized to access this endpoint.")
-        if target_user:
-            return target_user
+        if current_user.id != user_id:
+            if current_user.team_id is None or current_user.team_id != target_user.team_id:
+                raise PermissionDeniedException("You can only view your own profile or your teammates.")
 
-        user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
-        if not user:
-            raise NotFoundException("User not found")
-
-        safe_setex(cache_key, 60 * 60, json.dumps(UserResponse.model_validate(user).model_dump(mode="json")))
-        return UserResponse.model_validate(user)
+        return target_user
 
     
     def update_user_password(self, current_user, user_id: int, user_update: PasswordUpdate, db: Session):

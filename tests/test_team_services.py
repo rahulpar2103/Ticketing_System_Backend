@@ -53,7 +53,7 @@ class TestAdminGetTeams:
         db.commit()
         admin = make_fake_user(UserRole.admin)
         result = team_service_admin.get_all_teams(admin, db, 10, 0)
-        assert len(result) >= 2
+        assert len(result["items"]) >= 2
 
     def test_admin_get_single_team(self, db):
         team = make_db_team(db, name="Alpha")
@@ -149,7 +149,7 @@ class TestAgentGetTeamMembers:
         db.commit()
         agent = make_fake_user(UserRole.agent, user_id=2, team_id=team.id)
         result = team_service_agent.get_team_members(team.id, agent, db, 10, 0)
-        assert len(result) >= 1
+        assert len(result["items"]) >= 1
 
     def test_agent_cannot_list_other_team_members(self, db):
         team1 = make_db_team(db, name="T1")

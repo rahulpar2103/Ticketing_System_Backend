@@ -60,14 +60,12 @@ class AdminTicketService:
             created_by=current_user.id,
         )
         db.add(new_ticket)
+        db.flush()
+        log_audit_event(db, new_ticket.id, current_user, "CREATED")
         db.commit()
-
-        ticket_id = new_ticket.id
-        log_audit_event(db, ticket_id, current_user, "CREATED")
-        db.commit()
-        new_ticket = _load_ticket(db, ticket_id)
+        new_ticket = _load_ticket(db, new_ticket.id)
         if not new_ticket:
-            raise NotFoundException(f"Ticket {ticket_id} not found")
+            raise NotFoundException(f"Ticket {new_ticket.id} not found")
         delete_by_prefix("tickets:")
         return _build_response(new_ticket)
     
@@ -247,7 +245,6 @@ class AdminTicketService:
         if not ticket:
             raise NotFoundException(f"Ticket {id} not found")
         ticket.is_active = False
-        db.commit()
         log_audit_event(db, id, current_user, "DELETED")
         db.commit()
         safe_delete(f"ticket:{id}")

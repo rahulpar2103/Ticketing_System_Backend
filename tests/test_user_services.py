@@ -30,7 +30,7 @@ class TestAdminGetAllUsers:
         db.commit()
         admin = make_fake_user(UserRole.admin)
         result = user_service_admin.get_all_users(admin, db, limit=10, offset=0)
-        assert len(result) >= 2
+        assert len(result["items"]) >= 2
 
     def test_non_admin_cannot_list_users(self, db):
         agent = make_fake_user(UserRole.agent, user_id=2)

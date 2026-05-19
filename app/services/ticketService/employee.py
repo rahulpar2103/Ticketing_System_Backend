@@ -46,6 +46,8 @@ class EmployeeTicketService:
             created_by=current_user.id,
         )
         db.add(new_ticket)
+        db.flush()
+        log_audit_event(db, new_ticket.id, current_user, "CREATED")
         db.commit()
         new_ticket = _load_ticket(db, new_ticket.id)
         delete_by_prefix("tickets:")
@@ -195,7 +197,6 @@ class EmployeeTicketService:
         if ticket.status != TicketStatus.open:
             raise PermissionDeniedException("Employees can only delete tickets that are still open")
         ticket.is_active = False
-        db.commit()
         log_audit_event(db, id, current_user, "DELETED")
         db.commit()
         safe_delete(f"ticket:{id}")
