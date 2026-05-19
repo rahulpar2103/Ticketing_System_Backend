@@ -26,7 +26,7 @@ class TestUserCreate:
     def test_valid_user_create(self):
         u = UserCreate(
             name="Alice", username="alice01", email="alice@example.com",
-            password="password123", role=UserRole.employee,
+            password="StrongP@ss123!", role=UserRole.employee,
         )
         assert u.name == "Alice"
         assert u.role == UserRole.employee
@@ -34,7 +34,7 @@ class TestUserCreate:
     def test_name_stripped(self):
         u = UserCreate(
             name="  Bob  ", username="bob01", email="bob@example.com",
-            password="password123", role=UserRole.agent,
+            password="StrongP@ss123!", role=UserRole.agent,
         )
         assert u.name == "Bob"
 
@@ -42,69 +42,69 @@ class TestUserCreate:
         with pytest.raises(ValidationError, match="empty"):
             UserCreate(
                 name="   ", username="bob01", email="bob@example.com",
-                password="password123", role=UserRole.agent,
+                password="StrongP@ss123!", role=UserRole.agent,
             )
 
     def test_empty_username_rejected(self):
         with pytest.raises(ValidationError, match="empty"):
             UserCreate(
                 name="Bob", username="  ", email="bob@example.com",
-                password="password123", role=UserRole.agent,
+                password="StrongP@ss123!", role=UserRole.agent,
             )
 
     def test_short_username_rejected(self):
         with pytest.raises(ValidationError, match="at least 3"):
             UserCreate(
                 name="Bob", username="ab", email="bob@example.com",
-                password="password123", role=UserRole.agent,
+                password="StrongP@ss123!", role=UserRole.agent,
             )
 
     def test_long_username_rejected(self):
         with pytest.raises(ValidationError, match="cannot exceed 50"):
             UserCreate(
                 name="Bob", username="x" * 51, email="bob@example.com",
-                password="password123", role=UserRole.agent,
+                password="StrongP@ss123!", role=UserRole.agent,
             )
 
     def test_long_name_rejected(self):
         with pytest.raises(ValidationError, match="cannot exceed 100"):
             UserCreate(
                 name="x" * 101, username="bob01", email="bob@example.com",
-                password="password123", role=UserRole.agent,
+                password="StrongP@ss123!", role=UserRole.agent,
             )
 
     def test_short_password_rejected(self):
         with pytest.raises(ValidationError, match="at least 8"):
             UserCreate(
                 name="Bob", username="bob01", email="bob@example.com",
-                password="short", role=UserRole.agent,
+                password="Sh0rt!", role=UserRole.agent,
             )
 
     def test_invalid_email_rejected(self):
         with pytest.raises(ValidationError):
             UserCreate(
                 name="Bob", username="bob01", email="not-an-email",
-                password="password123", role=UserRole.agent,
+                password="StrongP@ss123!", role=UserRole.agent,
             )
 
     def test_invalid_role_rejected(self):
         with pytest.raises(ValidationError):
             UserCreate(
                 name="Bob", username="bob01", email="bob@example.com",
-                password="password123", role="superadmin",
+                password="StrongP@ss123!", role="superadmin",
             )
 
     def test_team_id_optional(self):
         u = UserCreate(
             name="Bob", username="bob01", email="bob@example.com",
-            password="password123", role=UserRole.employee,
+            password="StrongP@ss123!", role=UserRole.employee,
         )
         assert u.team_id is None
 
     def test_team_id_accepted(self):
         u = UserCreate(
             name="Bob", username="bob01", email="bob@example.com",
-            password="password123", role=UserRole.employee, team_id=5,
+            password="StrongP@ss123!", role=UserRole.employee, team_id=5,
         )
         assert u.team_id == 5
 
@@ -141,31 +141,31 @@ class TestUserUpdate:
 class TestPasswordUpdate:
 
     def test_valid(self):
-        p = PasswordUpdate(current_password="oldpass123", new_password="newpass123")
+        p = PasswordUpdate(current_password="oldpass123", new_password="StrongNewP@ss123!")
         assert p.current_password == "oldpass123"
 
     def test_new_password_too_short(self):
         with pytest.raises(ValidationError, match="at least 8"):
-            PasswordUpdate(current_password="oldpass123", new_password="short")
+            PasswordUpdate(current_password="oldpass123", new_password="Sh0rt!")
 
     def test_current_password_required(self):
         with pytest.raises(ValidationError):
-            PasswordUpdate(new_password="newpass123")
+            PasswordUpdate(new_password="StrongNewP@ss123!")
 
 
 class TestAdminPasswordReset:
 
     def test_valid(self):
-        p = AdminPasswordReset(new_password="newpass123")
-        assert p.new_password == "newpass123"
+        p = AdminPasswordReset(new_password="StrongNewP@ss123!")
+        assert p.new_password == "StrongNewP@ss123!"
 
     def test_new_password_too_short(self):
         with pytest.raises(ValidationError, match="at least 8"):
-            AdminPasswordReset(new_password="short")
+            AdminPasswordReset(new_password="Sh0rt!")
 
     def test_no_current_password_field(self):
         """Admin schema should NOT have a current_password field."""
-        p = AdminPasswordReset(new_password="newpass123")
+        p = AdminPasswordReset(new_password="StrongNewP@ss123!")
         assert not hasattr(p, "current_password")
 
 

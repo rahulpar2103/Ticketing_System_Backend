@@ -1,6 +1,6 @@
 from app.db.redis import safe_delete
 from app.db.redis import delete_by_prefix
-from app.core.security import verify_password
+from app.core.security import require_role, verify_password
 from app.core.exceptions import InvalidCredentialsException
 from app.schemas.userSchema import UserResponse
 import json
@@ -8,7 +8,7 @@ from app.core.exceptions import NotFoundException
 from app.models.userModel import User, UserRole
 from sqlalchemy.orm import Session
 from app.core.exceptions import PermissionDeniedException
-from app.core.security import hash_password
+from app.core.security import require_role, hash_password
 from app.schemas.userSchema import PasswordUpdate
 from app.db.redis import safe_get, safe_setex
 
@@ -40,8 +40,7 @@ class UserServiceAgent:
 
     
     def update_user_password(self, current_user, user_id: int, user_update: PasswordUpdate, db: Session):
-        if current_user.role != UserRole.agent and current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You are not authorized to perform this action")
+        require_role(current_user, [UserRole.agent, UserRole.admin])
         if current_user.id != user_id:
             raise PermissionDeniedException("You can change only your own password")
         user = db.query(User).filter(User.id == user_id).first()

@@ -10,16 +10,16 @@ from app.core.security import hash_password
 class TestLoginRoute:
     def test_login_success(self, client, db):
         make_db_user(db, username="loginuser", email="login@t.com",
-                     password="password123", role=UserRole.employee)
+                     password="StrongP@ss123!", role=UserRole.employee)
         db.commit()
         resp = client.post("/auth/login", data={
-            "username": "loginuser", "password": "password123"})
+            "username": "loginuser", "password": "StrongP@ss123!"})
         assert resp.status_code == 200
         assert "access_token" in resp.json()
 
     def test_login_wrong_password(self, client, db):
         make_db_user(db, username="loginuser", email="login@t.com",
-                     password="password123")
+                     password="StrongP@ss123!")
         db.commit()
         resp = client.post("/auth/login", data={
             "username": "loginuser", "password": "wrongpass1"})
@@ -27,15 +27,15 @@ class TestLoginRoute:
 
     def test_login_nonexistent_user(self, client):
         resp = client.post("/auth/login", data={
-            "username": "nobody", "password": "password123"})
+            "username": "nobody", "password": "StrongP@ss123!"})
         assert resp.status_code == 401
 
     def test_login_with_email(self, client, db):
         make_db_user(db, username="loginuser", email="login@t.com",
-                     password="password123")
+                     password="StrongP@ss123!")
         db.commit()
         resp = client.post("/auth/login", data={
-            "username": "login@t.com", "password": "password123"})
+            "username": "login@t.com", "password": "StrongP@ss123!"})
         assert resp.status_code == 200
 
 
@@ -43,7 +43,7 @@ class TestRegisterRoute:
     def test_admin_registers_user(self, admin_client):
         resp = admin_client.post("/auth/register", json={
             "name": "New User", "username": "newuser",
-            "email": "new@example.com", "password": "password123",
+            "email": "new@example.com", "password": "StrongP@ss123!",
             "role": "employee",
         })
         assert resp.status_code == 201
@@ -52,7 +52,7 @@ class TestRegisterRoute:
     def test_employee_cannot_register(self, employee_client):
         resp = employee_client.post("/auth/register", json={
             "name": "New User", "username": "newuser",
-            "email": "new@example.com", "password": "password123",
+            "email": "new@example.com", "password": "StrongP@ss123!",
             "role": "employee",
         })
         assert resp.status_code == 403
@@ -60,7 +60,7 @@ class TestRegisterRoute:
     def test_short_password_rejected(self, admin_client):
         resp = admin_client.post("/auth/register", json={
             "name": "New User", "username": "newuser",
-            "email": "new@example.com", "password": "short",
+            "email": "new@example.com", "password": "Sh0rt!",
             "role": "employee",
         })
         assert resp.status_code == 422
@@ -68,7 +68,7 @@ class TestRegisterRoute:
     def test_invalid_email_rejected(self, admin_client):
         resp = admin_client.post("/auth/register", json={
             "name": "New User", "username": "newuser",
-            "email": "not-valid", "password": "password123",
+            "email": "not-valid", "password": "StrongP@ss123!",
             "role": "employee",
         })
         assert resp.status_code == 422
@@ -76,7 +76,7 @@ class TestRegisterRoute:
     def test_duplicate_registration(self, admin_client):
         payload = {
             "name": "User", "username": "dupuser",
-            "email": "dup@example.com", "password": "password123",
+            "email": "dup@example.com", "password": "StrongP@ss123!",
             "role": "employee",
         }
         admin_client.post("/auth/register", json=payload)
@@ -93,9 +93,9 @@ class TestLogoutRoute:
         client = TestClient(app, raise_server_exceptions=False)
 
         # 1. Create a user and login
-        make_db_user(db, username="logoutuser", email="logout@t.com", password="password123")
+        make_db_user(db, username="logoutuser", email="logout@t.com", password="StrongP@ss123!")
         db.commit()
-        resp = client.post("/auth/login", data={"username": "logoutuser", "password": "password123"})
+        resp = client.post("/auth/login", data={"username": "logoutuser", "password": "StrongP@ss123!"})
         token = resp.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
         

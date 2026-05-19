@@ -82,7 +82,7 @@ class TestPasswordUpdate:
         with TestClient(app, raise_server_exceptions=False) as c:
             resp = c.patch(
                 f"/users/{user.id}/password",
-                json={"current_password": "oldpass123", "new_password": "newpass1234"},
+                json={"current_password": "oldpass123", "new_password": "StrongP@ss1234!"},
             )
         app.dependency_overrides.clear()
         assert resp.status_code == 200
@@ -90,7 +90,7 @@ class TestPasswordUpdate:
     def test_password_update_missing_current(self, employee_client):
         resp = employee_client.patch(
             "/users/3/password",
-            json={"new_password": "newpass1234"},
+            json={"new_password": "StrongP@ss1234!"},
         )
         assert resp.status_code == 422  # Pydantic validation
 
@@ -101,7 +101,7 @@ class TestAdminPasswordReset:
         db.commit()
         resp = admin_client.patch(
             f"/users/{user.id}/reset-password",
-            json={"new_password": "newpass1234"},
+            json={"new_password": "StrongP@ss1234!"},
         )
         assert resp.status_code == 200
 
@@ -110,7 +110,7 @@ class TestAdminPasswordReset:
         db.commit()
         resp = admin_client.patch(
             f"/users/{user.id}/reset-password",
-            json={"new_password": "short"},
+            json={"new_password": "Sh0rt!"},
         )
         assert resp.status_code == 422
 
@@ -119,7 +119,7 @@ class TestCreateUserRoute:
     def test_admin_creates_user(self, admin_client):
         payload = {
             "name": "John Doe", "username": "johndoe",
-            "email": "john@example.com", "password": "password123",
+            "email": "john@example.com", "password": "StrongP@ss123!",
             "role": "employee",
         }
         resp = admin_client.post("/auth/register", json=payload)
@@ -132,7 +132,7 @@ class TestCreateUserRoute:
     def test_employee_cannot_create_user(self, employee_client):
         payload = {
             "name": "John", "username": "johndoe",
-            "email": "john@example.com", "password": "password123",
+            "email": "john@example.com", "password": "StrongP@ss123!",
             "role": "employee",
         }
         resp = employee_client.post("/auth/register", json=payload)

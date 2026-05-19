@@ -9,6 +9,7 @@ from app.core.exceptions import (
     ValidationException,
 )
 from app.models.teamModel import Team
+from app.core.security import require_role
 from app.models.userModel import User, UserRole
 from sqlalchemy.orm import Session
 from sqlalchemy import asc, desc
@@ -30,8 +31,7 @@ MEMBER_SORTABLE_FIELDS = {
 class TeamServiceAdmin:
 
     def create_team(self, team: TeamCreate, current_user: User, db: Session):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You are not authorized to create a team")
+        require_role(current_user, UserRole.admin)
         existing_team = db.query(Team).filter(Team.name == team.name).first()
         if existing_team:
             raise AlreadyExistsException(f"Team '{team.name}' already exists")
@@ -46,8 +46,7 @@ class TeamServiceAdmin:
         self, current_user: User, db: Session, limit: int, offset: int,
         sort_by: str = "created_at", order: str = "desc",
     ):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You are not authorized to get all teams")
+        require_role(current_user, UserRole.admin)
 
         query = db.query(Team).filter(Team.is_active == True)
 
@@ -74,8 +73,7 @@ class TeamServiceAdmin:
         }
 
     def get_team(self, id: int, current_user: User, db: Session):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You are not authorized to get a team")
+        require_role(current_user, UserRole.admin)
         cache_key = f"team:{id}"
         cached = safe_get(cache_key)
         if cached:
@@ -90,8 +88,7 @@ class TeamServiceAdmin:
         self, team_id: int, current_user: User, db: Session, limit: int, offset: int,
         sort_by: str = "created_at", order: str = "desc",
     ):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You are not authorized to get team members")
+        require_role(current_user, UserRole.admin)
         team = db.query(Team).filter(Team.id == team_id, Team.is_active == True).first()
         if not team:
             raise NotFoundException(f"Team {team_id} not found")
@@ -121,8 +118,7 @@ class TeamServiceAdmin:
         }
 
     def update_team(self, id: int, team_update: TeamUpdate, current_user: User, db: Session):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You are not authorized to update a team")
+        require_role(current_user, UserRole.admin)
         team = db.query(Team).filter(Team.id == id).first()
         if not team:
             raise NotFoundException(f"Team {id} not found")
@@ -144,8 +140,7 @@ class TeamServiceAdmin:
         return {"message": f"Team {id} updated successfully"}
 
     def delete_team(self, id: int, current_user: User, db: Session):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You are not authorized to delete a team")
+        require_role(current_user, UserRole.admin)
         team = db.query(Team).filter(Team.id == id).first()
         if not team:
             raise NotFoundException(f"Team {id} not found")
@@ -184,8 +179,7 @@ class TeamServiceAdmin:
 
     def reactivate_team(self, id: int, current_user: User, db: Session):
         """Re-enable a soft-deleted team. Admin only."""
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You are not authorized to reactivate a team")
+        require_role(current_user, UserRole.admin)
         team = db.query(Team).filter(Team.id == id, Team.is_active == False).first()
         if not team:
             raise NotFoundException(f"Team {id} not found or is already active")
@@ -197,8 +191,7 @@ class TeamServiceAdmin:
 
     def get_team_stats(self, team_id: int, current_user: User, db: Session):
         """Get per-team ticket statistics. Admin only."""
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You are not authorized to view team stats")
+        require_role(current_user, UserRole.admin)
         team = db.query(Team).filter(Team.id == team_id).first()
         if not team:
             raise NotFoundException(f"Team {team_id} not found")

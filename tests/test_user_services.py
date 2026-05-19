@@ -138,22 +138,22 @@ class TestAdminDeleteUser:
 class TestAdminPasswordReset:
 
     def test_admin_can_reset_password(self, db):
-        user = make_db_user(db, password="oldpassword1")
+        user = make_db_user(db, password="OldStrongP@ss1!")
         db.commit()
         admin = make_fake_user(UserRole.admin)
         result = user_service_admin.update_user_password(
-            admin, user.id, AdminPasswordReset(new_password="newpass1234"), db,
+            admin, user.id, AdminPasswordReset(new_password="StrongP@ss1234!"), db,
         )
         assert "updated" in result["message"]
         db.refresh(user)
-        assert verify_password("newpass1234", user.hashed_password)
+        assert verify_password("StrongP@ss1234!", user.hashed_password)
 
     def test_non_admin_cannot_admin_reset(self, db):
         with pytest.raises(PermissionDeniedException):
             user_service_admin.update_user_password(
                 make_fake_user(UserRole.agent),
                 1,
-                AdminPasswordReset(new_password="newpass1234"),
+                AdminPasswordReset(new_password="StrongP@ss1234!"),
                 db,
             )
 
@@ -187,12 +187,12 @@ class TestEmployeePasswordUpdate:
         fake_emp = make_fake_user(UserRole.employee, user_id=user.id)
         result = user_service_employee.update_user_password(
             fake_emp, user.id,
-            PasswordUpdate(current_password="oldpass123", new_password="newpass1234"),
+            PasswordUpdate(current_password="oldpass123", new_password="StrongP@ss1234!"),
             db,
         )
         assert "updated" in result["message"]
         db.refresh(user)
-        assert verify_password("newpass1234", user.hashed_password)
+        assert verify_password("StrongP@ss1234!", user.hashed_password)
 
     def test_employee_wrong_current_password(self, db):
         user = make_db_user(db, role=UserRole.employee, password="oldpass123")
@@ -201,7 +201,7 @@ class TestEmployeePasswordUpdate:
         with pytest.raises(InvalidCredentialsException):
             user_service_employee.update_user_password(
                 fake_emp, user.id,
-                PasswordUpdate(current_password="wrongpass1", new_password="newpass1234"),
+                PasswordUpdate(current_password="wrongpass1", new_password="StrongP@ss1234!"),
                 db,
             )
 
@@ -212,7 +212,7 @@ class TestEmployeePasswordUpdate:
         with pytest.raises(PermissionDeniedException):
             user_service_employee.update_user_password(
                 fake_emp, user.id,
-                PasswordUpdate(current_password="oldpass123", new_password="newpass1234"),
+                PasswordUpdate(current_password="oldpass123", new_password="StrongP@ss1234!"),
                 db,
             )
 
@@ -259,7 +259,7 @@ class TestAgentPasswordUpdate:
         fake_agent = make_fake_user(UserRole.agent, user_id=user.id)
         result = user_service_agent.update_user_password(
             fake_agent, user.id,
-            PasswordUpdate(current_password="oldpass123", new_password="newpass1234"),
+            PasswordUpdate(current_password="oldpass123", new_password="StrongP@ss1234!"),
             db,
         )
         assert "updated" in result["message"]
@@ -271,6 +271,6 @@ class TestAgentPasswordUpdate:
         with pytest.raises(PermissionDeniedException):
             user_service_agent.update_user_password(
                 fake_agent, user.id,
-                PasswordUpdate(current_password="oldpass123", new_password="newpass1234"),
+                PasswordUpdate(current_password="oldpass123", new_password="StrongP@ss1234!"),
                 db,
             )

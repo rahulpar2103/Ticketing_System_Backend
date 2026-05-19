@@ -26,7 +26,7 @@ class TestCreateUser:
     def _user_data(self, **overrides):
         defaults = dict(
             name="Test User", username="testuser", email="test@example.com",
-            password="password123", role=UserRole.employee,
+            password="StrongP@ss123!", role=UserRole.employee,
         )
         defaults.update(overrides)
         return UserCreate(**defaults)
@@ -37,7 +37,7 @@ class TestCreateUser:
         fetched = db.query(User).filter(User.email == "test@example.com").first()
         assert fetched is not None
         assert fetched.username == "testuser"
-        assert fetched.hashed_password != "password123"  # must be hashed
+        assert fetched.hashed_password != "StrongP@ss123!"  # must be hashed
 
     def test_create_user_returns_user_response(self, db):
         result = auth_service.create_user(self._admin(), self._user_data(), db)
@@ -121,7 +121,7 @@ class TestLogin:
         from app.core.security import hash_password
         user = User(
             name="Login User", username="loginuser", email="login@example.com",
-            hashed_password=hash_password("password123"),
+            hashed_password=hash_password("StrongP@ss123!"),
             role=UserRole.employee,
         )
         db.add(user)
@@ -130,25 +130,25 @@ class TestLogin:
 
     def test_login_with_username(self, db):
         self._seed_user(db)
-        result = auth_service.login(self.FakeForm("loginuser", "password123"), db)
+        result = auth_service.login(self.FakeForm("loginuser", "StrongP@ss123!"), db)
         assert "access_token" in result
         assert result["token_type"] == "bearer"
 
     def test_login_with_email(self, db):
         self._seed_user(db)
-        result = auth_service.login(self.FakeForm("login@example.com", "password123"), db)
+        result = auth_service.login(self.FakeForm("login@example.com", "StrongP@ss123!"), db)
         assert "access_token" in result
 
     def test_login_wrong_password(self, db):
         from app.core.exceptions import InvalidCredentialsException
         self._seed_user(db)
         with pytest.raises(InvalidCredentialsException):
-            auth_service.login(self.FakeForm("loginuser", "wrongpass"), db)
+            auth_service.login(self.FakeForm("loginuser", "Wr0ngP@ss123!"), db)
 
     def test_login_nonexistent_user(self, db):
         from app.core.exceptions import InvalidCredentialsException
         with pytest.raises(InvalidCredentialsException):
-            auth_service.login(self.FakeForm("nobody", "password123"), db)
+            auth_service.login(self.FakeForm("nobody", "StrongP@ss123!"), db)
 
     def test_login_inactive_user(self, db):
         from app.core.exceptions import InvalidCredentialsException
@@ -156,4 +156,4 @@ class TestLogin:
         user.is_active = False
         db.commit()
         with pytest.raises(InvalidCredentialsException, match="disabled"):
-            auth_service.login(self.FakeForm("loginuser", "password123"), db)
+            auth_service.login(self.FakeForm("loginuser", "StrongP@ss123!"), db)

@@ -8,7 +8,7 @@ from app.schemas.userSchema import AdminPasswordReset
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, asc, desc
 from app.models.userModel import User, UserRole
-from app.core.security import hash_password
+from app.core.security import require_role, hash_password
 from app.core.exceptions import ValidationException
 import json
 from app.schemas.userSchema import UserResponse
@@ -31,8 +31,7 @@ class UserServiceAdmin:
         team_id: int | None = None, is_active: bool | None = None,
         sort_by: str = "created_at", order: str = "desc",
     ) -> dict:
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You do not have permission to get all users")
+        require_role(current_user, UserRole.admin)
 
         query = db.query(User)
 
@@ -100,8 +99,7 @@ class UserServiceAdmin:
         
 
     def get_user(self, current_user, user_id: int, db: Session) -> UserResponse:
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You do not have permission to get a user")
+        require_role(current_user, UserRole.admin)
 
         cache_key = f"user:{user_id}"
         cached_data = safe_get(cache_key)
@@ -117,8 +115,7 @@ class UserServiceAdmin:
 
 
     def update_user(self, current_user, user_id: int, user_update: UserUpdate, db: Session) -> dict:
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You do not have permission to update a user")
+        require_role(current_user, UserRole.admin)
         
         user_obj = db.query(User).filter(User.id == user_id).first()  
         if not user_obj:
@@ -171,8 +168,7 @@ class UserServiceAdmin:
         return {"message": f"User {user_id} updated successfully"}
     
     def delete_user(self,current_user,user_id: int,db: Session):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You do not have permission to delete a user")
+        require_role(current_user, UserRole.admin)
         if current_user.id == user_id:
             raise PermissionDeniedException("You cannot delete yourself")
         user = db.query(User).filter(User.id == user_id).first()
@@ -185,8 +181,7 @@ class UserServiceAdmin:
         return {"message": f"User {user_id} deleted successfully"}
 
     def update_user_password(self, current_user, user_id: int, user_update: AdminPasswordReset, db: Session):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You do not have permission to update a user password")
+        require_role(current_user, UserRole.admin)
         user = db.query(User).filter(User.id == user_id, User.is_active == True).first()
         if not user:
             raise NotFoundException("User not found")
@@ -199,8 +194,7 @@ class UserServiceAdmin:
 
     def reactivate_user(self, current_user, user_id: int, db: Session):
         """Re-enable a soft-deleted user account. Admin only."""
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("You do not have permission to reactivate a user")
+        require_role(current_user, UserRole.admin)
         user = db.query(User).filter(User.id == user_id, User.is_active == False).first()
         if not user:
             raise NotFoundException("User not found or is already active")

@@ -2,7 +2,7 @@ from app.core.exceptions import NotFoundException
 from app.db.redis import safe_delete, delete_by_prefix
 from app.models.userModel import UserRole, User
 from app.models.teamModel import Team
-from app.core.security import hash_password, verify_password, create_access_token
+from app.core.security import require_role, hash_password, verify_password, create_access_token
 from app.core.exceptions import PermissionDeniedException, InvalidCredentialsException, AlreadyExistsException, ValidationException
 from app.schemas.userSchema import UserCreate, UserResponse, TokenResponse
 from sqlalchemy.orm import Session
@@ -13,8 +13,7 @@ class AuthService:
 
     def create_user(self, current_user: User, user: UserCreate, db: Session) -> UserResponse:
         """Admin-only: create a new user account."""
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("Only admins can create users")
+        require_role(current_user, UserRole.admin)
 
         existing = db.execute(
             select(User).where(

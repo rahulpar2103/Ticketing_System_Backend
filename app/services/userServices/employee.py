@@ -1,18 +1,19 @@
 from app.db.redis import safe_setex, safe_get, safe_delete, delete_by_prefix
 import json
 from app.core.exceptions import InvalidCredentialsException
-from app.core.security import verify_password
+from app.core.security import require_role, verify_password
 from app.core.exceptions import NotFoundException
 from app.models.userModel import User, UserRole
 from sqlalchemy.orm import Session
 from app.core.exceptions import PermissionDeniedException
-from app.core.security import hash_password
+from app.core.security import require_role, hash_password
 from app.schemas.userSchema import PasswordUpdate
 from app.schemas.userSchema import UserResponse
 class UserServiceEmployee:
     def get_user(self, current_user, user_id: int, db: Session) -> UserResponse:
-        if current_user.role != UserRole.employee or current_user.id != user_id:
-            raise PermissionDeniedException("You can only view your own profile")
+        require_role(current_user, UserRole.employee)
+        if current_user.id != user_id:
+            raise PermissionDeniedException("Not allowed to access this endpoint")
         cache_key = f"user:{user_id}"
         cache_data = safe_get(cache_key)
         if cache_data:
@@ -25,8 +26,9 @@ class UserServiceEmployee:
 
     
     def update_user_password(self, current_user, user_id: int, user_update: PasswordUpdate, db: Session):
-        if current_user.role != UserRole.employee or current_user.id != user_id:
-            raise PermissionDeniedException("You can change only your own password")
+        require_role(current_user, UserRole.employee)
+        if current_user.id != user_id:
+            raise PermissionDeniedException("Not allowed to access this endpoint")
         
         user = db.query(User).filter(User.id == user_id).first()
         if not user:

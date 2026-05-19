@@ -4,6 +4,7 @@ from sqlalchemy import asc, desc
 from app.db.redis import safe_get, safe_setex, delete_by_prefix
 from app.models.commentModel import Comment
 from app.models.ticketModel import Ticket
+from app.core.security import require_role
 from app.models.userModel import User, UserRole
 from app.schemas.commentSchema import CommentCreate, CommentUpdate, CommentResponse
 from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
@@ -26,8 +27,7 @@ def _ticket_accessible(ticket: Ticket, current_user: User) -> bool:
 class AgentCommentService:
 
     def create_comment(self, ticket_id: int, body: CommentCreate, db: Session, current_user: User):
-        if current_user.role != UserRole.agent:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.agent)
         ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
         if not ticket:
             raise NotFoundException(f"Ticket {ticket_id} not found")
@@ -44,8 +44,7 @@ class AgentCommentService:
         self, ticket_id: int, db: Session, current_user: User, limit: int, offset: int,
         sort_by: str = "created_at", order: str = "asc",
     ):
-        if current_user.role != UserRole.agent:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.agent)
         ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
         if not ticket:
             raise NotFoundException(f"Ticket {ticket_id} not found")
@@ -77,8 +76,7 @@ class AgentCommentService:
         }
 
     def get_comment(self, comment_id: int, db: Session, current_user: User):
-        if current_user.role != UserRole.agent:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.agent)
         comment = _load_comment(db, comment_id)
         if not comment:
             raise NotFoundException(f"Comment {comment_id} not found")
@@ -88,8 +86,7 @@ class AgentCommentService:
         return _build_response(comment)
 
     def update_comment(self, comment_id: int, body: CommentUpdate, db: Session, current_user: User):
-        if current_user.role != UserRole.agent:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.agent)
         comment = db.query(Comment).filter(Comment.id == comment_id).first()
         if not comment:
             raise NotFoundException(f"Comment {comment_id} not found")
@@ -103,8 +100,7 @@ class AgentCommentService:
         return _build_response(comment)
 
     def delete_comment(self, comment_id: int, db: Session, current_user: User):
-        if current_user.role != UserRole.agent:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.agent)
         comment = db.query(Comment).filter(Comment.id == comment_id).first()
         if not comment:
             raise NotFoundException(f"Comment {comment_id} not found")

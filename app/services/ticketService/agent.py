@@ -7,6 +7,7 @@ from sqlalchemy import or_
 from app.db.redis import delete_by_prefix
 from app.models.ticketModel import Ticket, TicketStatus
 from app.models.teamModel import Team
+from app.core.security import require_role
 from app.models.userModel import User, UserRole
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
 from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
@@ -27,8 +28,7 @@ VALID_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
 class AgentTicketService:
 
     def _require_agent(self, current_user: User):
-        if current_user.role != UserRole.agent:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.agent)
 
     def _is_accessible(self, ticket: Ticket, current_user: User) -> bool:
         """Ticket is accessible if the agent created it, is assigned to it, or it belongs to their team."""

@@ -3,6 +3,7 @@ from app.db.redis import safe_get, safe_setex
 from app.schemas.userSchema import UserResponse
 from app.core.exceptions import PermissionDeniedException, NotFoundException, ValidationException
 from app.models.teamModel import Team
+from app.core.security import require_role
 from app.models.userModel import User, UserRole
 from sqlalchemy.orm import Session
 from sqlalchemy import asc, desc
@@ -18,8 +19,7 @@ MEMBER_SORTABLE_FIELDS = {
 class TeamServiceEmployee:
 
     def get_team(self, id: int, current_user: User, db: Session):
-        if current_user.role != UserRole.employee:
-            raise PermissionDeniedException("You are not authorized to hit this endpoint")
+        require_role(current_user, UserRole.employee)
         if current_user.team_id is None:
             raise PermissionDeniedException("You are not assigned to a team")
         if current_user.team_id != id:
@@ -38,8 +38,7 @@ class TeamServiceEmployee:
         self, team_id: int, current_user: User, db: Session, limit: int, offset: int,
         sort_by: str = "created_at", order: str = "desc",
     ):
-        if current_user.role != UserRole.employee:
-            raise PermissionDeniedException("You are not authorized to hit this endpoint")
+        require_role(current_user, UserRole.employee)
         if current_user.team_id is None:
             raise PermissionDeniedException("You are not assigned to a team")
         if current_user.team_id != team_id:

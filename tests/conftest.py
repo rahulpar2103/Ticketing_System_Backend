@@ -104,7 +104,7 @@ def make_db_user(
     name: str = "DB User",
     username: str = "dbuser",
     email: str = "db@example.com",
-    password: str = "password123",
+    password: str = "StrongP@ss123!",
     team_id: int | None = None,
 ) -> User:
     """Insert a real user row and return the ORM object."""
@@ -177,7 +177,7 @@ def _seed_user_if_needed(db, role, username, email, user_id=None, team_id=None):
         name=f"Test {role.value}",
         username=username,
         email=email,
-        hashed_password=hash_password("testpass123"),
+        hashed_password=hash_password("StrongP@ss123!"),
         role=role,
         team_id=team_id,
     )

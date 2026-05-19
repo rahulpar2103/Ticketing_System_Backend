@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.redis import delete_by_prefix
 from app.models.ticketModel import Ticket
 from app.models.teamModel import Team
+from app.core.security import require_role
 from app.models.userModel import User, UserRole
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
 from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
@@ -19,8 +20,7 @@ from datetime import datetime, timezone
 class AdminTicketService:
 
     def create_ticket(self, ticket: TicketCreate, db: Session, current_user: User):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.admin)
 
         # Normalize sentinel values
         if ticket.assigned_to == -1:
@@ -73,8 +73,7 @@ class AdminTicketService:
         search: str | None = None, status: str | None = None,
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.admin)
 
         query = db.query(Ticket).filter(Ticket.is_active == True)
         query = apply_ticket_filters(query, search, status, priority)
@@ -82,8 +81,7 @@ class AdminTicketService:
         return paginate_tickets(query, limit, offset)
 
     def get_ticket(self, id: int, db: Session, current_user: User):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.admin)
         cache_key = f"ticket:{id}"
         cached = safe_get(cache_key)
         if cached:
@@ -100,8 +98,7 @@ class AdminTicketService:
         search: str | None = None, status: str | None = None,
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.admin)
 
         query = db.query(Ticket).filter(
             Ticket.assigned_to == current_user.id, Ticket.is_active == True
@@ -115,8 +112,7 @@ class AdminTicketService:
         search: str | None = None, status: str | None = None,
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.admin)
 
         query = db.query(Ticket).filter(
             Ticket.created_by == current_user.id, Ticket.is_active == True
@@ -130,8 +126,7 @@ class AdminTicketService:
         search: str | None = None, status: str | None = None,
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.admin)
         team = db.query(Team).filter(Team.id == team_id).first()
         if not team:
             raise NotFoundException(f"Team {team_id} not found")
@@ -148,8 +143,7 @@ class AdminTicketService:
         search: str | None = None, status: str | None = None,
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.admin)
 
         query = db.query(Ticket).filter(
             Ticket.assigned_to == user_id, Ticket.is_active == True
@@ -159,8 +153,7 @@ class AdminTicketService:
         return paginate_tickets(query, limit, offset)
 
     def update_ticket(self, id: int, ticket_update: TicketUpdate, db: Session, current_user: User):
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.admin)
 
         ticket = db.query(Ticket).filter(Ticket.id == id, Ticket.is_active == True).first()
         if not ticket:
@@ -244,8 +237,7 @@ class AdminTicketService:
 
     def delete_ticket(self, id: int, db: Session, current_user: User):
         """Soft-delete a ticket. Admin only."""
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.admin)
         ticket = db.query(Ticket).filter(Ticket.id == id, Ticket.is_active == True).first()
         if not ticket:
             raise NotFoundException(f"Ticket {id} not found")
@@ -258,8 +250,7 @@ class AdminTicketService:
 
     def get_ticket_stats(self, db: Session, current_user: User, team_id: int | None = None):
         """Get ticket statistics (counts by status and priority). Admin only."""
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.admin)
 
         from app.models.ticketModel import Priority
         from sqlalchemy import func
@@ -314,8 +305,7 @@ class AdminTicketService:
 
     def reactivate_ticket(self, id: int, db: Session, current_user: User):
         """Re-enable a soft-deleted ticket. Admin only."""
-        if current_user.role != UserRole.admin:
-            raise PermissionDeniedException("Not allowed to access this endpoint")
+        require_role(current_user, UserRole.admin)
         ticket = db.query(Ticket).filter(Ticket.id == id, Ticket.is_active == False).first()
         if not ticket:
             raise NotFoundException(f"Ticket {id} not found or is already active")
