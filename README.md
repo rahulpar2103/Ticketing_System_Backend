@@ -64,7 +64,9 @@ All account creation is admin-controlled. There is no self-registration.
 - **Redis Caching** — detail responses cached with prefix-based invalidation on mutations
 - **Rate Limiting** — per-endpoint limits via `slowapi` (e.g., 5/min on login, 30/min on reads)
 - **Health Check** — `GET /health` checks API, database, and Redis connectivity
-- **Soft Deletes** — users, teams, and tickets are deactivated via `is_active` flag; tickets deletable by all roles with role-specific rules
+- **Soft Deletes & Cascade** — users, teams, and tickets are deactivated via `is_active` flag; team deletion cascades to clear team/assignment references
+- **Reactivation** — admin-only endpoints to restore soft-deleted users, teams, and tickets
+- **Audit Trails** — records ticket actions (creation, updates, deletion) to track history
 - **Background Tasks** — welcome emails sent asynchronously on user creation
 - **Alembic Migrations** — schema changes are versioned and reproducible
 
@@ -122,6 +124,7 @@ All account creation is admin-controlled. There is no self-registration.
 | Delete ticket (soft-delete) | ✅ (any ticket) | ✅ (accessible tickets) | ✅ (own open tickets only) |
 | Reactivate a soft-deleted ticket | ✅ | ❌ | ❌ |
 | View ticket stats (by status/priority) | ✅ | ❌ | ❌ |
+| View ticket audit history (logs) | ✅ | ✅ (accessible tickets) | ✅ (own tickets) |
 
 > ¹ **Accessible** for agents = ticket they created, are assigned to, or belongs to their team.  
 > ² **Valid transitions** for agents: `open → in_progress → resolved → closed` (strict state machine).  
@@ -171,6 +174,7 @@ Employee: open ──→ closed       (cancel / no longer needed)
 │   │   ├── db.py                 # get_db() dependency
 │   │   └── user.py               # get_current_user() + OAuth2 scheme
 │   ├── models/
+│   │   ├── auditModel.py         # AuditLog ORM model
 │   │   ├── commentModel.py       # Comment ORM model
 │   │   ├── teamModel.py          # Team ORM model
 │   │   ├── ticketModel.py        # Ticket ORM model + Status/Priority enums
@@ -183,12 +187,14 @@ Employee: open ──→ closed       (cancel / no longer needed)
 │   │   ├── tickets.py            # Ticket CRUD routes
 │   │   └── users.py              # User CRUD + password routes
 │   ├── schemas/
+│   │   ├── auditSchema.py        # AuditLogResponse schema
 │   │   ├── commentSchema.py      # CommentCreate, CommentUpdate, CommentResponse
 │   │   ├── pagination.py         # PaginatedResponse[T] generic wrapper
 │   │   ├── teamSchema.py         # TeamCreate, TeamUpdate, TeamResponse
 │   │   ├── ticketSchema.py       # TicketCreate, TicketUpdate, TicketResponse
 │   │   └── userSchema.py         # UserCreate, UserUpdate, UserResponse, etc.
 │   ├── services/
+│   │   ├── auditService.py       # log_audit_event, get_ticket_audit_logs
 │   │   ├── commentService/       # admin.py, agent.py, employee.py, utils.py
 │   │   ├── teamService/          # admin.py, agent.py, employee.py
 │   │   ├── ticketService/        # admin.py, agent.py, employee.py, utils.py
@@ -300,6 +306,7 @@ alembic -c app/alembic.ini revision --autogenerate -m "describe_your_change"
 | `1e20803a61b8` | Add `resolved_at` to tickets |
 | `7fb6b4390738` | Make `is_active` non-nullable with backfill |
 | `f16a2694d019` | Add unique constraint to `teams.name` |
+| `c69b827e06f9` | Add `audit_logs` table |
 
 ---
 
@@ -383,6 +390,7 @@ All seeded users share the password: `Password@123`
 | `PATCH` | `/tickets/{id}` | Update ticket | Role-scoped |
 | `DELETE` | `/tickets/{id}` | Soft-delete ticket | Role-scoped |
 | `PATCH` | `/tickets/{id}/reactivate` | Re-enable a soft-deleted ticket | Admin |
+| `GET` | `/tickets/{id}/history` | Get ticket audit history | Role-scoped |
 
 #### Ticket Query Parameters
 
@@ -431,7 +439,7 @@ All list endpoints return a paginated response:
 Tests use a separate PostgreSQL database (`TEST_DATABASE_URL`) with per-test transaction rollback for isolation. Redis is automatically mocked.
 
 ```bash
-# Run all 203 tests
+# Run all 209 tests
 pytest
 
 # Verbose output
@@ -490,6 +498,10 @@ Users, teams, and tickets are never hard-deleted. Setting `is_active = False` re
 
 When a ticket's status is set to `resolved`, the `resolved_at` timestamp is automatically recorded in UTC. This happens in both the admin and agent ticket services.
 
+### Audit Trails
+
+Action logging records `CREATED`, `UPDATED`, and `DELETED` events inside the `audit_logs` table. Updates capture JSON changes. Transactions are consolidated so that a ticket operation and its audit log record commit together in a single transaction.
+
 ---
 
 ## Future Improvements
@@ -497,6 +509,5 @@ When a ticket's status is set to `resolved`, the `resolved_at` timestamp is auto
 - **Email integration** — replace the print stub `send_welcome_email` with a real SMTP client
 - **Containerization** — Dockerfile and docker-compose for PostgreSQL, Redis, and the API
 - **Refresh tokens** — current JWTs have no refresh mechanism
-- **Audit logging** — track who changed what on a ticket
 - **WebSocket notifications** — real-time updates when tickets are assigned or status changes
 - **Bulk operations** — update/delete multiple tickets at once
