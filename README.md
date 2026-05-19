@@ -1,6 +1,6 @@
-# Ticketing System — Internal Office Help Desk API
+# Ticketing System - Internal Office Help Desk API
 
-A backend REST API for managing internal support tickets in an organization. Built with **FastAPI**, it implements strict role-based access control across three user roles — **Admin**, **Agent**, and **Employee** — with Redis caching, JWT authentication, and per-role business logic enforced at the service layer.
+A backend REST API for managing internal support tickets in an organization. Built with **FastAPI**, it implements strict role-based access control across three user roles (**Admin**, **Agent**, and **Employee**) with Redis caching, JWT authentication, and per-role business logic enforced at the service layer.
 
 ---
 
@@ -27,9 +27,9 @@ A backend REST API for managing internal support tickets in an organization. Bui
 
 This system is designed for an **internal office environment** where:
 
-- **Admins** have full control — they create user accounts, manage teams, and oversee all tickets and comments across the organization.
-- **Agents** work within their assigned team — they can view, create, and manage tickets scoped to their team, assign tickets to teammates, and follow a strict status workflow.
-- **Employees** have limited access — they raise tickets, track their own issues, and can comment on tickets they're involved in.
+- **Admins** have full control: they create user accounts, manage teams, and oversee all tickets and comments across the organization.
+- **Agents** work within their assigned team: they can view, create, and manage tickets scoped to their team, assign tickets to teammates, and follow a strict status workflow.
+- **Employees** have limited access: they raise tickets, track their own issues, and can comment on tickets they're involved in.
 
 All account creation is admin-controlled. There is no self-registration.
 
@@ -54,21 +54,21 @@ All account creation is admin-controlled. There is no self-registration.
 
 ## Features
 
-- **JWT Authentication** — login with username or email; tokens verified on every protected route
-- **Role-Based Access Control** — three roles with strictly scoped permissions enforced at the service layer
-- **Ticket Lifecycle** — state machine for status transitions with role-specific rules
-- **Search & Filtering** — tickets searchable by keyword (title/description), filterable by status, priority; users searchable by name/username/email, filterable by role, team, active status
-- **Sorting** — all list endpoints support `sort_by` and `order` query params with field validation
-- **Pagination Metadata** — all list endpoints return `{ items, total, limit, offset, has_more }` instead of bare arrays
-- **CORS Middleware** — configurable allowed origins for frontend integration
-- **Redis Caching** — detail responses cached with prefix-based invalidation on mutations
-- **Rate Limiting** — per-endpoint limits via `slowapi` (e.g., 5/min on login, 30/min on reads)
-- **Health Check** — `GET /health` checks API, database, and Redis connectivity
-- **Soft Deletes & Cascade** — users, teams, and tickets are deactivated via `is_active` flag; team deletion cascades to clear team/assignment references
-- **Reactivation** — admin-only endpoints to restore soft-deleted users, teams, and tickets
-- **Audit Trails** — records ticket actions (creation, updates, deletion) to track history
-- **Background Tasks** — welcome emails sent asynchronously on user creation
-- **Alembic Migrations** — schema changes are versioned and reproducible
+- **JWT Authentication**: login with username or email; tokens verified on every protected route
+- **Role-Based Access Control**: three roles with strictly scoped permissions enforced at the service layer
+- **Ticket Lifecycle**: state machine for status transitions with role-specific rules
+- **Search & Filtering**: tickets searchable by keyword (title/description), filterable by status, priority; users searchable by name/username/email, filterable by role, team, active status
+- **Sorting**: all list endpoints support `sort_by` and `order` query params with field validation
+- **Pagination Metadata**: all list endpoints return `{ items, total, limit, offset, has_more }` instead of bare arrays
+- **CORS Middleware**: configurable allowed origins for frontend integration
+- **Redis Caching**: detail responses cached with prefix-based invalidation on mutations
+- **Rate Limiting**: per-endpoint limits via `slowapi` (e.g., 5/min on login, 30/min on reads)
+- **Health Check**: `GET /health` checks API, database, and Redis connectivity
+- **Soft Deletes & Cascade**: users, teams, and tickets are deactivated via `is_active` flag; team deletion cascades to clear team/assignment references
+- **Reactivation**: admin-only endpoints to restore soft-deleted users, teams, and tickets
+- **Audit Trails**: records ticket actions (creation, updates, deletion) to track history
+- **Background Tasks**: welcome emails sent asynchronously on user creation
+- **Alembic Migrations**: schema changes are versioned and reproducible
 
 ---
 
@@ -451,11 +451,11 @@ pytest tests/test_ticket_services.py -v
 
 ### Test Architecture
 
-- **`conftest.py`** — creates schema once per session, provides `db` fixture with transaction rollback, auto-mocks Redis, provides role-specific `TestClient` fixtures (`admin_client`, `agent_client`, `employee_client`)
-- **Service tests** — test business logic directly against the DB
-- **Route tests** — test HTTP endpoints via `TestClient`
-- **Schema tests** — validate Pydantic field validators
-- **Security tests** — JWT creation, verification, and expiry
+- **`conftest.py`**: creates schema once per session, provides `db` fixture with transaction rollback, auto-mocks Redis, provides role-specific `TestClient` fixtures (`admin_client`, `agent_client`, `employee_client`)
+- **Service tests**: test business logic directly against the DB
+- **Route tests**: test HTTP endpoints via `TestClient`
+- **Schema tests**: validate Pydantic field validators
+- **Security tests**: JWT creation, verification, and expiry
 
 ### Test Coverage
 
@@ -484,7 +484,7 @@ Each service method checks `current_user.role` against `UserRole` enum values as
 
 ### Redis Caching
 
-Responses are cached with structured keys like `tickets:all:10:0` or `comments:ticket:5:10:0`. On any mutation, affected keys are invalidated using `delete_by_prefix()`, which performs a Redis `SCAN` + `DELETE`. All Redis operations use `safe_*` wrappers that swallow exceptions — the app degrades gracefully without Redis.
+Responses are cached with structured keys like `tickets:all:10:0` or `comments:ticket:5:10:0`. On any mutation, affected keys are invalidated using `delete_by_prefix()`, which performs a Redis `SCAN` + `DELETE`. All Redis operations use `safe_*` wrappers that swallow exceptions - the app degrades gracefully without Redis.
 
 ### Ticket Assignment Validation
 
@@ -506,8 +506,8 @@ Action logging records `CREATED`, `UPDATED`, and `DELETED` events inside the `au
 
 ## Future Improvements
 
-- **Email integration** — replace the print stub `send_welcome_email` with a real SMTP client
-- **Containerization** — Dockerfile and docker-compose for PostgreSQL, Redis, and the API
-- **Refresh tokens** — current JWTs have no refresh mechanism
-- **WebSocket notifications** — real-time updates when tickets are assigned or status changes
-- **Bulk operations** — update/delete multiple tickets at once
+- **Email integration**: replace the print stub `send_welcome_email` with a real SMTP client
+- **Containerization**: Dockerfile and docker-compose for PostgreSQL, Redis, and the API
+- **Refresh tokens**: current JWTs have no refresh mechanism
+- **WebSocket notifications**: real-time updates when tickets are assigned or status changes
+- **Bulk operations**: update/delete multiple tickets at once
