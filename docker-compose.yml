@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ticket_user
+      POSTGRES_PASSWORD: ticket_pass
+      POSTGRES_DB: ticket_db
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticket_user"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+  web:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    command: ["/app/entrypoint.sh"]
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  redis_data:

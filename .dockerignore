@@ -1,0 +1,32 @@
+# Virtual environment
+ticket/
+
+# Git
+.git/
+.gitignore
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment files (will be injected via Docker Compose)
+app/.env
+app/.env.example
+
+# Tests (not needed in production image)
+tests/
+
+# Scripts (seeding is not part of runtime)
+scripts/
+
+# Misc
+README.md
+*.md
+.antigravitycli/
+pyrefly.toml
