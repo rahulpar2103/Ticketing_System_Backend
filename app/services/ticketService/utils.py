@@ -111,8 +111,19 @@ def apply_ticket_sorting(query, sort_by: str = "created_at", order: str = "desc"
 
 def paginate_tickets(query, limit: int, offset: int):
     """Execute a ticket query and return items + metadata dict."""
-    total = query.count()
-    tickets = _load_tickets(query).limit(limit).offset(offset).all()
+    from sqlalchemy import func
+
+    # Leverage a window function to retrieve the total matching rows and items in a single query
+    count_query = query.add_columns(func.count().over().label("total_count"))
+    db_results = _load_tickets(count_query).limit(limit).offset(offset).all()
+
+    if db_results:
+        tickets = [row[0] for row in db_results]
+        total = db_results[0][1]
+    else:
+        tickets = []
+        total = 0
+
     responses = [_build_response(t) for t in tickets]
     return {
         "items": responses,
