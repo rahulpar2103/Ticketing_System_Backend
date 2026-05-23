@@ -10,7 +10,12 @@ class Settings(BaseSettings):
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     REDIS_URL: str = "redis://localhost:6379"
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173", "https://ticketing-system-frontend-lilac.vercel.app"]
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://ticketing-system-frontend-lilac.vercel.app",
+        "https://ticketing-system-frontend-8tzpolizj-anonymous21-03s-projects.vercel.app"
+    ]
 
     model_config = SettingsConfigDict(env_file="app/.env")
 
