@@ -177,7 +177,7 @@ def get_ticket_stats(
     current_user: User = Depends(get_current_user),
     team_id: int | None = Query(None, description="Optional: filter stats by team ID"),
 ):
-    """Get ticket statistics (counts by status and priority). Admin only."""
+    """Get ticket statistics (counts by status and priority) scoped by user role."""
     return ticket_service_admin.get_ticket_stats(db, current_user, team_id)
 
 

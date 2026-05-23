@@ -253,59 +253,126 @@ class AdminTicketService:
         return {"message": f"Ticket {id} deleted successfully"}
 
     def get_ticket_stats(self, db: Session, current_user: User, team_id: int | None = None):
-        """Get ticket statistics (counts by status and priority). Admin only."""
-        require_role(current_user, UserRole.admin)
-
+        """Get ticket statistics (counts by status and priority) scoped by user role."""
         from app.models.ticketModel import Priority
-        from sqlalchemy import func
+        from sqlalchemy import func, or_
 
-        query = db.query(Ticket).filter(Ticket.is_active == True)
-        if team_id is not None:
-            team = db.query(Team).filter(Team.id == team_id).first()
-            if not team:
-                raise NotFoundException(f"Team {team_id} not found")
-            query = query.filter(Ticket.team_id == team_id)
+        if current_user.role == UserRole.admin:
+            query = db.query(Ticket).filter(Ticket.is_active == True)
+            if team_id is not None:
+                team = db.query(Team).filter(Team.id == team_id).first()
+                if not team:
+                    raise NotFoundException(f"Team {team_id} not found")
+                query = query.filter(Ticket.team_id == team_id)
 
-        total = query.count()
+            total = query.count()
 
-        # By status
-        status_counts = {}
-        status_rows = (
-            db.query(Ticket.status, func.count(Ticket.id))
-            .filter(Ticket.is_active == True, *([Ticket.team_id == team_id] if team_id else []))
-            .group_by(Ticket.status)
-            .all()
-        )
-        for s in TicketStatus:
-            status_counts[s.value] = 0
-        for status, count in status_rows:
-            status_counts[status.value] = count
+            # By status
+            status_counts = {s.value: 0 for s in TicketStatus}
+            status_rows = (
+                db.query(Ticket.status, func.count(Ticket.id))
+                .filter(Ticket.is_active == True, *([Ticket.team_id == team_id] if team_id else []))
+                .group_by(Ticket.status)
+                .all()
+            )
+            for status, count in status_rows:
+                status_counts[status.value] = count
 
-        # By priority
-        priority_counts = {}
-        priority_rows = (
-            db.query(Ticket.priority, func.count(Ticket.id))
-            .filter(Ticket.is_active == True, *([Ticket.team_id == team_id] if team_id else []))
-            .group_by(Ticket.priority)
-            .all()
-        )
-        for p in Priority:
-            priority_counts[p.value] = 0
-        for priority, count in priority_rows:
-            priority_counts[priority.value] = count
+            # By priority
+            priority_counts = {p.value: 0 for p in Priority}
+            priority_rows = (
+                db.query(Ticket.priority, func.count(Ticket.id))
+                .filter(Ticket.is_active == True, *([Ticket.team_id == team_id] if team_id else []))
+                .group_by(Ticket.priority)
+                .all()
+            )
+            for priority, count in priority_rows:
+                priority_counts[priority.value] = count
 
-        # Unassigned count
-        unassigned_filter = [Ticket.is_active == True, Ticket.assigned_to == None]
-        if team_id:
-            unassigned_filter.append(Ticket.team_id == team_id)
-        unassigned = db.query(Ticket).filter(*unassigned_filter).count()
+            # Unassigned count
+            unassigned_filter = [Ticket.is_active == True, Ticket.assigned_to == None]
+            if team_id:
+                unassigned_filter.append(Ticket.team_id == team_id)
+            unassigned = db.query(Ticket).filter(*unassigned_filter).count()
 
-        return {
-            "total": total,
-            "by_status": status_counts,
-            "by_priority": priority_counts,
-            "unassigned": unassigned,
-        }
+            return {
+                "total": total,
+                "by_status": status_counts,
+                "by_priority": priority_counts,
+                "unassigned": unassigned,
+            }
+
+        elif current_user.role == UserRole.agent:
+            filters = [Ticket.created_by == current_user.id, Ticket.assigned_to == current_user.id]
+            if current_user.team_id is not None:
+                filters.append(Ticket.team_id == current_user.team_id)
+            base_filter = or_(*filters)
+
+            query = db.query(Ticket).filter(base_filter, Ticket.is_active == True)
+            total = query.count()
+
+            # By status
+            status_counts = {s.value: 0 for s in TicketStatus}
+            status_rows = (
+                db.query(Ticket.status, func.count(Ticket.id))
+                .filter(base_filter, Ticket.is_active == True)
+                .group_by(Ticket.status)
+                .all()
+            )
+            for status, count in status_rows:
+                status_counts[status.value] = count
+
+            # By priority
+            priority_counts = {p.value: 0 for p in Priority}
+            priority_rows = (
+                db.query(Ticket.priority, func.count(Ticket.id))
+                .filter(base_filter, Ticket.is_active == True)
+                .group_by(Ticket.priority)
+                .all()
+            )
+            for priority, count in priority_rows:
+                priority_counts[priority.value] = count
+
+            # Assigned to me count
+            assigned_to_me = db.query(Ticket).filter(
+                Ticket.assigned_to == current_user.id,
+                Ticket.is_active == True
+            ).count()
+
+            return {
+                "total": total,
+                "by_status": status_counts,
+                "by_priority": priority_counts,
+                "assignedToMe": assigned_to_me,
+                "assigned_to_me": assigned_to_me,
+            }
+
+        else: # Employee
+            base_filter = or_(Ticket.created_by == current_user.id, Ticket.assigned_to == current_user.id)
+
+            query = db.query(Ticket).filter(base_filter, Ticket.is_active == True)
+            total = query.count()
+
+            # By status
+            status_counts = {s.value: 0 for s in TicketStatus}
+            status_rows = (
+                db.query(Ticket.status, func.count(Ticket.id))
+                .filter(base_filter, Ticket.is_active == True)
+                .group_by(Ticket.status)
+                .all()
+            )
+            for status, count in status_rows:
+                status_counts[status.value] = count
+
+            active_count = status_counts.get("open", 0) + status_counts.get("in_progress", 0)
+            resolved_count = status_counts.get("resolved", 0) + status_counts.get("closed", 0)
+
+            return {
+                "total": total,
+                "by_status": status_counts,
+                "active": active_count,
+                "resolved": resolved_count,
+            }
 
     def reactivate_ticket(self, id: int, db: Session, current_user: User):
         """Re-enable a soft-deleted ticket. Admin only."""
