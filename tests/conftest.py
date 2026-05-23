@@ -31,8 +31,34 @@ TestingSessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=Fals
 
 # ── Database lifecycle ──────────────────────────────────────────────────────
 
+def create_test_db_if_not_exists():
+    from sqlalchemy.engine import make_url
+    from sqlalchemy.engine.url import URL
+    from sqlalchemy import text
+    try:
+        url = make_url(settings.TEST_DATABASE_URL)
+        test_db = url.database
+        default_url = URL.create(
+            drivername=url.drivername,
+            username=url.username,
+            password=url.password,
+            host=url.host,
+            port=url.port,
+            database="postgres"
+        )
+        temp_engine = create_engine(default_url, isolation_level="AUTOCOMMIT")
+        with temp_engine.connect() as conn:
+            result = conn.execute(text(f"SELECT 1 FROM pg_database WHERE datname='{test_db}'"))
+            if not result.scalar():
+                conn.execute(text(f"CREATE DATABASE {test_db}"))
+        temp_engine.dispose()
+    except Exception:
+        pass
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
+    create_test_db_if_not_exists()
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)

@@ -273,11 +273,33 @@ cp app/.env.example app/.env
 
 ## Running the App
 
+### Option 1: Running Locally
+
 ```bash
 uvicorn app.main:app --reload
 ```
 
 The API will be available at `http://localhost:8000`.
+
+### Option 2: Running with Docker (Recommended)
+
+We provide a fully containerized setup using **Docker Compose** that bundles FastAPI, PostgreSQL, and Redis:
+
+```bash
+# Start all services in the background
+docker compose up -d
+
+# View active logs
+docker compose logs -f web
+
+# Run tests in the containerized environment
+docker compose exec web pytest
+
+# Seed sample data into the database
+docker compose exec web python scripts/seed.py
+```
+
+The containerized API is accessible at `http://localhost:8000`.
 
 | URL | Description |
 |---|---|
@@ -503,12 +525,10 @@ When a ticket's status is set to `resolved`, the `resolved_at` timestamp is auto
 
 Action logging records `CREATED`, `UPDATED`, and `DELETED` events inside the `audit_logs` table. Updates capture JSON changes. Transactions are consolidated so that a ticket operation and its audit log record commit together in a single transaction.
 
----
-
 ## Future Improvements
 
-- **Email integration**: replace the print stub `send_welcome_email` with a real SMTP client
-- **Containerization**: Dockerfile and docker-compose for PostgreSQL, Redis, and the API
-- **Refresh tokens**: current JWTs have no refresh mechanism
-- **WebSocket notifications**: real-time updates when tickets are assigned or status changes
-- **Bulk operations**: update/delete multiple tickets at once
+- [ ] **Email integration**: replace the print stub `send_welcome_email` with a real SMTP client
+- [x] **Containerization**: Dockerfile and docker-compose for PostgreSQL, Redis, and the API
+- [ ] **Refresh tokens**: current JWTs have no refresh mechanism
+- [ ] **WebSocket notifications**: real-time updates when tickets are assigned or status changes
+- [ ] **Bulk operations**: update/delete multiple tickets at once
