@@ -5,33 +5,29 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 
-# ── Path fix ────────────────────────────────────────────────────────────────
-# env.py lives at: project_root/app/alembic/env.py
-# Going up 2 levels lands at project_root, which is what Python needs
-# to resolve imports like "from app.core.config import settings"
+# Add project root to sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-# ── App imports ─────────────────────────────────────────────────────────────
+# App imports
 from app.core.config import settings
 from app.db.database import Base
 
-# Import every model so SQLAlchemy registers them on Base.metadata
-# Without these, autogenerate won't detect your tables
+# Import models for autogenerate to detect tables
 from app.models import userModel, teamModel, ticketModel, commentModel, auditModel, attachmentModel
 
-# ── Alembic config ──────────────────────────────────────────────────────────
+# Alembic config
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Pull DATABASE_URL from your settings (reads from app/.env)
+# Pull DATABASE_URL from settings
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 target_metadata = Base.metadata
 
 
-# ── Offline mode ────────────────────────────────────────────────────────────
+# Offline mode
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -44,7 +40,7 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-# ── Online mode ─────────────────────────────────────────────────────────────
+# Online mode
 def run_migrations_online() -> None:
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),

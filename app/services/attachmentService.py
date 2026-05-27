@@ -32,7 +32,7 @@ from app.core.exceptions import (
 from app.core.logger import logger
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# Helpers
 
 def _sanitize_filename(filename: str) -> str:
     """Strip path separators and non-ASCII chars to produce a safe S3 key segment."""
@@ -79,7 +79,7 @@ def _build_response(attachment: Attachment) -> AttachmentResponse:
     )
 
 
-# ── Service functions ────────────────────────────────────────────────────────
+# Service functions
 
 def presign_upload(
     ticket_id: int,

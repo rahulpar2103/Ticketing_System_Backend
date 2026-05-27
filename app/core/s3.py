@@ -5,6 +5,7 @@ Provides presigned URL generation and object management.
 
 import boto3
 from botocore.config import Config as BotoConfig
+from botocore.exceptions import ClientError
 from app.core.config import settings
 
 
@@ -62,7 +63,7 @@ def head_s3_object(key: str) -> dict | None:
     client = get_s3_client()
     try:
         return client.head_object(Bucket=settings.S3_BUCKET_NAME, Key=key)
-    except client.exceptions.ClientError:
+    except ClientError:
         return None
 
 

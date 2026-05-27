@@ -2,7 +2,7 @@ from pydantic import BaseModel, field_validator
 from datetime import datetime
 
 
-# ── Allowed content types ────────────────────────────────────────────────────
+# Allowed content types
 ALLOWED_CONTENT_TYPES = {
     "image/jpeg",
     "image/png",
@@ -15,7 +15,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 MAX_ATTACHMENTS_PER_TICKET = 10
 
 
-# ── Request schemas ─────────────────────────────────────────────────────────
+# Request schemas
 
 class AttachmentPresignRequest(BaseModel):
     """Request body to obtain a presigned upload URL."""
@@ -45,7 +45,7 @@ class AttachmentPresignRequest(BaseModel):
         return v
 
 
-# ── Response schemas ────────────────────────────────────────────────────────
+# Response schemas
 
 class AttachmentPresignResponse(BaseModel):
     """Returned after requesting a presigned upload URL."""

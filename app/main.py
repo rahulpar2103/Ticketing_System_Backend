@@ -20,7 +20,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# ── CORS ────────────────────────────────────────────────────────────────────
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -29,14 +29,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Rate Limiter ────────────────────────────────────────────────────────────
+# Rate Limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# ── Routers ─────────────────────────────────────────────────────────────────
+# Routers
 app.include_router(mainRouter.router)
 
-# ── Middleware: Request Logging ──────────────────────────────────────────────
+# Middleware: Request Logging
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.time()
@@ -65,7 +65,7 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-# ── Custom Exception Handlers ───────────────────────────────────────────────
+# Custom Exception Handlers
 async def _custom_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     logger.warning(f"Handled Exception {exc.__class__.__name__}: {getattr(exc, 'detail', str(exc))}", extra={
         "method": request.method,
@@ -81,7 +81,7 @@ for exc_class in (
 ):
     app.add_exception_handler(exc_class, _custom_exception_handler)
 
-# ── Health Check ────────────────────────────────────────────────────────────
+# Health Check
 @app.get("/health", tags=["Health"])
 def health_check():
     """

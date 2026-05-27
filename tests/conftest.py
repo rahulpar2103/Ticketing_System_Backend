@@ -29,7 +29,7 @@ engine = create_engine(settings.TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
-# ── Database lifecycle ──────────────────────────────────────────────────────
+# Database lifecycle
 
 def create_test_db_if_not_exists():
     from sqlalchemy.engine import make_url
@@ -77,7 +77,7 @@ def db():
     connection.close()
 
 
-# ── Redis mock (applied to every test automatically) ────────────────────────
+# Redis mock
 
 @pytest.fixture(autouse=True)
 def _mock_redis():
@@ -102,7 +102,7 @@ def _mock_redis():
         yield
 
 
-# ── Fake user factories ─────────────────────────────────────────────────────
+# Fake user factories
 
 def make_fake_user(
     role: UserRole,
@@ -192,7 +192,7 @@ def make_db_comment(
     return c
 
 
-# ── TestClient fixtures (one per role) ──────────────────────────────────────
+# TestClient fixtures
 
 def _seed_user_if_needed(db, role, username, email, user_id=None, team_id=None):
     """Insert a real DB user so FK constraints work. Returns the DB user."""
