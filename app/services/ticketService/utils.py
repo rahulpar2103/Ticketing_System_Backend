@@ -22,6 +22,7 @@ def _build_response(ticket: Ticket) -> TicketResponse:
         updated_at=ticket.updated_at,
         resolved_at=ticket.resolved_at,
         comment_count=ticket.comment_count if hasattr(ticket, 'comment_count') else 0,
+        attachment_count=ticket.attachment_count if hasattr(ticket, 'attachment_count') else 0,
     )
 
 

@@ -37,6 +37,7 @@ class Ticket(Base):
     created_by_user = relationship("User", back_populates="created_tickets", foreign_keys=[created_by])
     team = relationship("Team", foreign_keys=[team_id])
     comments = relationship("Comment", back_populates="ticket", passive_deletes=True)
+    attachments = relationship("Attachment", back_populates="ticket", passive_deletes=True)
 
     def __repr__(self):
         return f"<Ticket(id={self.id}, title='{self.title}', status='{self.status}')>"
@@ -45,10 +46,21 @@ class Ticket(Base):
 from sqlalchemy.orm import column_property
 from sqlalchemy import select
 from app.models.commentModel import Comment
+from app.models.attachmentModel import Attachment, AttachmentStatus
 
 Ticket.comment_count = column_property(
     select(func.count(Comment.id))
     .where(Comment.ticket_id == Ticket.id)
     .correlate_except(Comment)
+    .scalar_subquery()
+)
+
+Ticket.attachment_count = column_property(
+    select(func.count(Attachment.id))
+    .where(
+        Attachment.ticket_id == Ticket.id,
+        Attachment.status == AttachmentStatus.uploaded,
+    )
+    .correlate_except(Attachment)
     .scalar_subquery()
 )

@@ -49,6 +49,7 @@ All account creation is admin-controlled. There is no self-registration.
 | Rate Limiting | `slowapi` |
 | Testing | `pytest`, `FastAPI TestClient` |
 | Settings | `pydantic-settings` (`.env` file) |
+| File Storage | AWS S3 (presigned URL upload/download) |
 
 ---
 
@@ -68,6 +69,7 @@ All account creation is admin-controlled. There is no self-registration.
 - **Reactivation**: admin-only endpoints to restore soft-deleted users, teams, and tickets
 - **Audit Trails**: records ticket actions (creation, updates, deletion) to track history
 - **Background Tasks**: welcome emails sent asynchronously on user creation
+- **File Attachments**: S3-backed file uploads using presigned URLs (upload, confirm, list, download, delete)
 - **Alembic Migrations**: schema changes are versioned and reproducible
 
 ---
@@ -140,6 +142,15 @@ All account creation is admin-controlled. There is no self-registration.
 | Edit a comment | ✅ (any comment) | ✅ (own comments only) | ✅ (own comments only) |
 | Delete a comment | ✅ (any comment) | ✅ (own comments only) | ✅ (own comments only) |
 
+### Attachments
+
+| Action | Admin | Agent | Employee |
+|---|:---:|:---:|:---:|
+| Upload attachment to a ticket | ✅ (any ticket) | ✅ (accessible tickets) | ✅ (own tickets) |
+| List attachments on a ticket | ✅ (any ticket) | ✅ (accessible tickets) | ✅ (own tickets) |
+| Download an attachment | ✅ (any ticket) | ✅ (accessible tickets) | ✅ (own tickets) |
+| Delete an attachment | ✅ (any attachment) | ✅ (own uploads only) | ✅ (own uploads only) |
+
 ### Ticket Status Transitions by Role
 
 ```
@@ -165,6 +176,7 @@ Employee: open ──→ closed       (cancel / no longer needed)
 │   │   ├── config.py             # Settings loaded from .env (pydantic-settings)
 │   │   ├── email.py              # Email sending (stub/background task)
 │   │   ├── exceptions.py         # Custom exception classes
+│   │   ├── s3.py                 # boto3 S3 client helpers (presign, head, delete)
 │   │   ├── limiter.py            # slowapi Limiter instance
 │   │   └── security.py           # Password hashing, JWT encode/decode
 │   ├── db/
@@ -174,12 +186,16 @@ Employee: open ──→ closed       (cancel / no longer needed)
 │   │   ├── db.py                 # get_db() dependency
 │   │   └── user.py               # get_current_user() + OAuth2 scheme
 │   ├── models/
+│   │   ├── attachmentModel.py    # Attachment ORM model + AttachmentStatus enum
 │   │   ├── auditModel.py         # AuditLog ORM model
 │   │   ├── commentModel.py       # Comment ORM model
 │   │   ├── teamModel.py          # Team ORM model
 │   │   ├── ticketModel.py        # Ticket ORM model + Status/Priority enums
 │   │   └── userModel.py          # User ORM model + UserRole enum
+│   ├── schemas/
+│   │   ├── attachmentSchema.py   # AttachmentPresignRequest/Response, AttachmentResponse
 │   ├── routers/
+│   │   ├── attachments.py        # Attachment routes (presign, confirm, list, download, delete)
 │   │   ├── auth.py               # POST /auth/login, POST /auth/register
 │   │   ├── comments.py           # Comment CRUD routes
 │   │   ├── mainRouter.py         # Aggregates all routers
@@ -194,6 +210,7 @@ Employee: open ──→ closed       (cancel / no longer needed)
 │   │   ├── ticketSchema.py       # TicketCreate, TicketUpdate, TicketResponse
 │   │   └── userSchema.py         # UserCreate, UserUpdate, UserResponse, etc.
 │   ├── services/
+│   │   ├── attachmentService.py  # S3 + DB logic for attachments
 │   │   ├── auditService.py       # log_audit_event, get_ticket_audit_logs
 │   │   ├── commentService/       # admin.py, agent.py, employee.py, utils.py
 │   │   ├── teamService/          # admin.py, agent.py, employee.py
@@ -268,6 +285,10 @@ cp app/.env.example app/.env
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Token expiry | `300` |
 | `REDIS_URL` | Redis connection string | `redis://localhost:6379` |
 | `CORS_ORIGINS` | Allowed origins (JSON array) | `["http://localhost:3000"]` |
+| `AWS_ACCESS_KEY_ID` | AWS credentials for S3 | `AKIA...` |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret key | `...` |
+| `AWS_REGION` | S3 bucket region | `us-east-1` |
+| `S3_BUCKET_NAME` | S3 bucket for file attachments | `my-ticketing-attachments` |
 
 ---
 
@@ -329,6 +350,7 @@ alembic -c app/alembic.ini revision --autogenerate -m "describe_your_change"
 | `7fb6b4390738` | Make `is_active` non-nullable with backfill |
 | `f16a2694d019` | Add unique constraint to `teams.name` |
 | `c69b827e06f9` | Add `audit_logs` table |
+| `af70f505f73e` | Add `attachments` table |
 
 ---
 
@@ -434,6 +456,16 @@ All seeded users share the password: `Password@123`
 | `PATCH` | `/comments/{id}` | Edit a comment | Role-scoped |
 | `DELETE` | `/comments/{id}` | Delete a comment | Role-scoped |
 
+### Attachments
+
+| Method | Endpoint | Description | Auth |
+|---|---|---|:---:|
+| `POST` | `/tickets/{id}/attachments/presign` | Get a presigned S3 URL to upload a file | All roles |
+| `POST` | `/tickets/{id}/attachments/{aid}/confirm` | Confirm the file was uploaded to S3 | All roles |
+| `GET` | `/tickets/{id}/attachments` | List all confirmed attachments with download URLs | All roles |
+| `GET` | `/tickets/{id}/attachments/{aid}/download` | Get a fresh presigned download URL | All roles |
+| `DELETE` | `/tickets/{id}/attachments/{aid}` | Delete attachment (uploader or admin only) | Role-scoped |
+
 ### Pagination Response Format
 
 All list endpoints return a paginated response:
@@ -527,6 +559,7 @@ Action logging records `CREATED`, `UPDATED`, and `DELETED` events inside the `au
 
 ## Future Improvements
 
+- [x] **File Attachments**: S3-backed presigned URL upload/download for ticket attachments
 - [ ] **Email integration**: replace the print stub `send_welcome_email` with a real SMTP client
 - [x] **Containerization**: Dockerfile and docker-compose for PostgreSQL, Redis, and the API
 - [ ] **Refresh tokens**: current JWTs have no refresh mechanism

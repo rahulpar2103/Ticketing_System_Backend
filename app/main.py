@@ -16,7 +16,7 @@ from app.core.exceptions import (
 
 app = FastAPI(
     title="Ticketing System API",
-    description="Internal office ticketing system with role-based access control",
+    description="Internal office ticketing system",
     version="1.0.0",
 )
 

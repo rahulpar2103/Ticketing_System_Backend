@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     REDIS_URL: str = "redis://localhost:6379"
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_REGION: str = "us-east-1"
+    S3_BUCKET_NAME: str = ""
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
