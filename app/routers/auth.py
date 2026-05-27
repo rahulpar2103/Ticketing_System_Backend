@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -10,6 +11,8 @@ from app.core.email import send_welcome_email
 from app.db.redis import safe_setex
 from app.core.config import settings
 from app.dependencies.user import oauth2_scheme
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -27,11 +30,14 @@ def register(
     db: Session = Depends(get_db),
 ):
     new_user = auth_service.create_user(current_user, user, db)
-    send_welcome_email.delay(
-        email=user.email,
-        username=user.username,
-        password=user.password,
-    )
+    try:
+        send_welcome_email.delay(
+            email=user.email,
+            username=user.username,
+            password=user.password,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to enqueue welcome email for {user.email}: {e}")
     return new_user
 
 @router.post("/logout", status_code=200)
