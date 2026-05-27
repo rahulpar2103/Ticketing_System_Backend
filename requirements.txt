@@ -50,3 +50,5 @@ urllib3==2.7.0
 uvicorn==0.46.0
 wrapt==2.1.2
 boto3>=1.35.0
+celery>=5.3.0
+

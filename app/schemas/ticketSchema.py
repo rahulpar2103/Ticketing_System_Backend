@@ -86,5 +86,6 @@ class TicketResponse(BaseModel):
     resolved_at: datetime | None = None
     comment_count: int = 0
     attachment_count: int = 0
+    is_active: bool = True
 
     model_config = {"from_attributes": True}
