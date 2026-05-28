@@ -20,6 +20,13 @@ class Settings(BaseSettings):
         "https://ticketing-system-frontend-lilac.vercel.app",
         "https://ticketing-system-frontend-8tzpolizj-anonymous21-03s-projects.vercel.app"
     ]
+    
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_TLS: bool = True
 
     model_config = SettingsConfigDict(env_file="app/.env")
 
