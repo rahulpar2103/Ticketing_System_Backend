@@ -1,10 +1,8 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from app.core.celery_app import celery_app
 from app.core.config import settings
 
-@celery_app.task
 def send_welcome_email(email: str, username: str, password: str):
     if not settings.SMTP_HOST:
         return "SMTP not configured"

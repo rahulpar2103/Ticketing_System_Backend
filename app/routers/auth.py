@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, BackgroundTasks
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.limiter import limiter
@@ -26,12 +26,14 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
 def register(
     request: Request,
     user: UserCreate,
+    background_tasks: BackgroundTasks,
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     new_user = auth_service.create_user(current_user, user, db)
     try:
-        send_welcome_email.delay(
+        background_tasks.add_task(
+            send_welcome_email,
             email=user.email,
             username=user.username,
             password=user.password,
