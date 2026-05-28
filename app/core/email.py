@@ -1,6 +1,4 @@
-import logging
-
-logger = logging.getLogger(__name__)
+from app.core.logger import logger
 
 def send_welcome_email(email: str, username: str, password: str):
     logger.info("=" * 40)
