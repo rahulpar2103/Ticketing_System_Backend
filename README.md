@@ -58,6 +58,7 @@ All account creation is admin-controlled. There is no self-registration.
 - **JWT Authentication**: login with username or email; tokens verified on every protected route
 - **Role-Based Access Control**: three roles with strictly scoped permissions enforced at the service layer
 - **Ticket Lifecycle**: state machine for status transitions with role-specific rules
+- **SLA Management & Tracking**: auto-calculates ticket deadlines (`due_at`) on creation and priority changes based on priority tiers (`low` = 48h, `medium` = 24h, `high` = 12h, `urgent` = 4h), and marks overdue tickets as breached dynamically
 - **Search & Filtering**: tickets searchable by keyword (title/description), filterable by status, priority; users searchable by name/username/email, filterable by role, team, active status
 - **Sorting**: all list endpoints support `sort_by` and `order` query params with field validation
 - **Pagination Metadata**: all list endpoints return `{ items, total, limit, offset, has_more }` instead of bare arrays
@@ -351,6 +352,7 @@ alembic -c app/alembic.ini revision --autogenerate -m "describe_your_change"
 | `f16a2694d019` | Add unique constraint to `teams.name` |
 | `c69b827e06f9` | Add `audit_logs` table |
 | `af70f505f73e` | Add `attachments` table |
+| `620076afd572` | Add SLA fields to tickets (`due_at`, `sla_breached`) |
 
 ---
 
