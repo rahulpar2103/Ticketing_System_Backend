@@ -8,6 +8,8 @@ from app.core.security import require_role
 from app.models.userModel import User, UserRole
 from app.schemas.ticketSchema import TicketCreate, TicketUpdate, TicketResponse
 from app.core.exceptions import NotFoundException, PermissionDeniedException, ValidationException
+from datetime import datetime, timezone
+from app.core.sla import calculate_due_at, update_expired_slas
 from app.services.ticketService.utils import (
     _build_response, _load_ticket, _load_tickets,
     apply_ticket_filters, apply_ticket_sorting, paginate_tickets,
@@ -37,11 +39,14 @@ class EmployeeTicketService:
         if ticket.team_id is not None:
             raise PermissionDeniedException("Employees cannot assign a ticket to a team on creation")
 
+        now = datetime.now(timezone.utc)
         new_ticket = Ticket(
             title=ticket.title,
             description=ticket.description,
             priority=ticket.priority,
             created_by=current_user.id,
+            created_at=now,
+            due_at=calculate_due_at(now, ticket.priority),
         )
         db.add(new_ticket)
         db.flush()
@@ -71,6 +76,7 @@ class EmployeeTicketService:
 
     def get_ticket(self, id: int, db: Session, current_user: User):
         self._require_employee(current_user)
+        update_expired_slas(db)
         cache_key = f"ticket:{id}"
         cached = safe_get(cache_key)
         if cached:
@@ -98,6 +104,7 @@ class EmployeeTicketService:
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
         self._require_employee(current_user)
+        update_expired_slas(db)
 
         query = db.query(Ticket).filter(
             Ticket.created_by == current_user.id, Ticket.is_active == True
@@ -112,6 +119,7 @@ class EmployeeTicketService:
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
         self._require_employee(current_user)
+        update_expired_slas(db)
 
         query = db.query(Ticket).filter(
             Ticket.assigned_to == current_user.id, Ticket.is_active == True
@@ -129,6 +137,7 @@ class EmployeeTicketService:
         if not ticket:
             raise NotFoundException(f"Ticket {id} not found")
 
+        update_expired_slas(db)
         if ticket.created_by != current_user.id:
             raise PermissionDeniedException("You can only edit tickets you created")
 
@@ -145,7 +154,6 @@ class EmployeeTicketService:
         if ticket_update.priority is not None:
             raise PermissionDeniedException("Employees cannot change ticket priority")
 
-        # Employees can only change status: open -> closed or resolved -> closed
         if ticket_update.status is not None:
             allowed_transitions = {
                 TicketStatus.open: TicketStatus.closed,
@@ -157,6 +165,10 @@ class EmployeeTicketService:
                     "Employees can only close their own tickets (open → closed or resolved → closed)"
                 )
             ticket.status = ticket_update.status
+            resolved_time = datetime.now(timezone.utc)
+            ticket.resolved_at = resolved_time
+            due_at = ticket.due_at or calculate_due_at(ticket.created_at or resolved_time, ticket.priority)
+            ticket.sla_breached = resolved_time > due_at
 
         if ticket_update.assigned_to is not None:
             raise PermissionDeniedException("Employees cannot reassign tickets")

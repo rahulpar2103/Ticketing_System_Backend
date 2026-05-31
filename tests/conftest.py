@@ -84,21 +84,22 @@ def _mock_redis():
     """Disable Redis for all tests — services fall back to DB queries."""
     mock_store = {}
 
-    def mock_get(key):
-        return mock_store.get(key)
+    class MockRedis:
+        def get(self, key):
+            return mock_store.get(key)
+        def setex(self, key, ttl, value):
+            mock_store[key] = value
+        def delete(self, *keys):
+            for k in keys:
+                mock_store.pop(k, None)
+        def scan(self, cursor, match=None, count=None):
+            # Return matching keys from mock_store
+            prefix = match.replace("*", "") if match else ""
+            matched = [k for k in mock_store.keys() if k.startswith(prefix)]
+            return 0, matched
 
-    def mock_setex(key, ttl, value):
-        mock_store[key] = value
-
-    def mock_delete(key):
-        mock_store.pop(key, None)
-
-    with (
-        patch("app.db.redis.safe_get", side_effect=mock_get),
-        patch("app.db.redis.safe_setex", side_effect=mock_setex),
-        patch("app.db.redis.safe_delete", side_effect=mock_delete),
-        patch("app.db.redis.delete_by_prefix"),
-    ):
+    mock_client = MockRedis()
+    with patch("app.db.redis.redis_client", mock_client):
         yield
 
 

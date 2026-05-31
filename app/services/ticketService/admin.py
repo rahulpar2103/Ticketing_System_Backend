@@ -17,6 +17,7 @@ from app.services.ticketService.utils import (
     apply_ticket_filters, apply_ticket_sorting, paginate_tickets,
 )
 from datetime import datetime, timezone
+from app.core.sla import calculate_due_at, update_expired_slas
 
 class AdminTicketService:
 
@@ -51,6 +52,7 @@ class AdminTicketService:
         elif assigned_user is not None:
             ticket.team_id = assigned_user.team_id  
 
+        now = datetime.now(timezone.utc)
         new_ticket = Ticket(
             title=ticket.title,
             description=ticket.description,
@@ -58,6 +60,8 @@ class AdminTicketService:
             assigned_to=ticket.assigned_to,
             team_id=ticket.team_id,
             created_by=current_user.id,
+            created_at=now,
+            due_at=calculate_due_at(now, ticket.priority),
         )
         db.add(new_ticket)
         db.flush()
@@ -75,6 +79,7 @@ class AdminTicketService:
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
         require_role(current_user, UserRole.admin)
+        update_expired_slas(db)
 
         query = db.query(Ticket).filter(Ticket.is_active == True)
         query = apply_ticket_filters(query, search, status, priority)
@@ -83,6 +88,7 @@ class AdminTicketService:
 
     def get_ticket(self, id: int, db: Session, current_user: User):
         require_role(current_user, UserRole.admin)
+        update_expired_slas(db)
         cache_key = f"ticket:{id}"
         cached = safe_get(cache_key)
         if cached:
@@ -100,6 +106,7 @@ class AdminTicketService:
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
         require_role(current_user, UserRole.admin)
+        update_expired_slas(db)
 
         query = db.query(Ticket).filter(
             Ticket.assigned_to == current_user.id, Ticket.is_active == True
@@ -114,6 +121,7 @@ class AdminTicketService:
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
         require_role(current_user, UserRole.admin)
+        update_expired_slas(db)
 
         query = db.query(Ticket).filter(
             Ticket.created_by == current_user.id, Ticket.is_active == True
@@ -128,6 +136,7 @@ class AdminTicketService:
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
         require_role(current_user, UserRole.admin)
+        update_expired_slas(db)
         team = db.query(Team).filter(Team.id == team_id).first()
         if not team:
             raise NotFoundException(f"Team {team_id} not found")
@@ -145,6 +154,7 @@ class AdminTicketService:
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
         require_role(current_user, UserRole.admin)
+        update_expired_slas(db)
 
         query = db.query(Ticket).filter(
             Ticket.assigned_to == user_id, Ticket.is_active == True
@@ -160,16 +170,32 @@ class AdminTicketService:
         if not ticket:
             raise NotFoundException(f"Ticket {id} not found")
 
+        update_expired_slas(db)
         if ticket_update.title is not None:
             ticket.title = ticket_update.title
         if ticket_update.description is not None:
             ticket.description = ticket_update.description
-        if ticket_update.status is not None:
-            ticket.status = ticket_update.status
-            if ticket_update.status == TicketStatus.resolved:
-                ticket.resolved_at = datetime.now(timezone.utc)
         if ticket_update.priority is not None:
             ticket.priority = ticket_update.priority
+            created_time = ticket.created_at or datetime.now(timezone.utc)
+            ticket.due_at = calculate_due_at(created_time, ticket_update.priority)
+            now = datetime.now(timezone.utc)
+            if ticket.status in [TicketStatus.open, TicketStatus.in_progress]:
+                ticket.sla_breached = ticket.due_at < now
+            elif ticket.resolved_at is not None:
+                ticket.sla_breached = ticket.resolved_at > ticket.due_at
+
+        if ticket_update.status is not None:
+            ticket.status = ticket_update.status
+            if ticket_update.status in [TicketStatus.resolved, TicketStatus.closed]:
+                resolved_time = datetime.now(timezone.utc)
+                ticket.resolved_at = resolved_time
+                due_at = ticket.due_at or calculate_due_at(ticket.created_at or resolved_time, ticket.priority)
+                ticket.sla_breached = resolved_time > due_at
+            elif ticket_update.status in [TicketStatus.open, TicketStatus.in_progress]:
+                ticket.resolved_at = None
+                due_at = ticket.due_at or calculate_due_at(ticket.created_at or datetime.now(timezone.utc), ticket.priority)
+                ticket.sla_breached = due_at < datetime.now(timezone.utc)
 
         unassign_user = ticket_update.assigned_to == -1
         unassign_team = ticket_update.team_id == 0
@@ -257,6 +283,8 @@ class AdminTicketService:
         from app.models.ticketModel import Priority
         from sqlalchemy import func, or_
 
+        update_expired_slas(db)
+
         if current_user.role == UserRole.admin:
             query = db.query(Ticket).filter(Ticket.is_active == True)
             if team_id is not None:
@@ -295,11 +323,18 @@ class AdminTicketService:
                 unassigned_filter.append(Ticket.team_id == team_id)
             unassigned = db.query(Ticket).filter(*unassigned_filter).count()
 
+            # SLA Breach count
+            breached_filter = [Ticket.is_active == True, Ticket.sla_breached == True]
+            if team_id:
+                breached_filter.append(Ticket.team_id == team_id)
+            breached_count = db.query(Ticket).filter(*breached_filter).count()
+
             return {
                 "total": total,
                 "by_status": status_counts,
                 "by_priority": priority_counts,
                 "unassigned": unassigned,
+                "sla_breached": breached_count,
             }
 
         elif current_user.role == UserRole.agent:
@@ -339,12 +374,18 @@ class AdminTicketService:
                 Ticket.is_active == True
             ).count()
 
+            # Breach count
+            breached_count = db.query(Ticket).filter(
+                base_filter, Ticket.is_active == True, Ticket.sla_breached == True
+            ).count()
+
             return {
                 "total": total,
                 "by_status": status_counts,
                 "by_priority": priority_counts,
                 "assignedToMe": assigned_to_me,
                 "assigned_to_me": assigned_to_me,
+                "sla_breached": breached_count,
             }
 
         else: # Employee
@@ -367,11 +408,17 @@ class AdminTicketService:
             active_count = status_counts.get("open", 0) + status_counts.get("in_progress", 0)
             resolved_count = status_counts.get("resolved", 0) + status_counts.get("closed", 0)
 
+            # Breach count
+            breached_count = db.query(Ticket).filter(
+                base_filter, Ticket.is_active == True, Ticket.sla_breached == True
+            ).count()
+
             return {
                 "total": total,
                 "by_status": status_counts,
                 "active": active_count,
                 "resolved": resolved_count,
+                "sla_breached": breached_count,
             }
 
     def reactivate_ticket(self, id: int, db: Session, current_user: User):

@@ -17,6 +17,7 @@ from app.services.ticketService.utils import (
     apply_ticket_filters, apply_ticket_sorting, paginate_tickets,
 )
 from datetime import datetime, timezone
+from app.core.sla import calculate_due_at, update_expired_slas
 
 VALID_TRANSITIONS: dict[TicketStatus, set[TicketStatus]] = {
     TicketStatus.open:        {TicketStatus.in_progress},
@@ -73,6 +74,7 @@ class AgentTicketService:
         elif assigned_user is not None:
             ticket.team_id = assigned_user.team_id
 
+        now = datetime.now(timezone.utc)
         new_ticket = Ticket(
             title=ticket.title,
             description=ticket.description,
@@ -80,6 +82,8 @@ class AgentTicketService:
             assigned_to=ticket.assigned_to,
             team_id=ticket.team_id,
             created_by=current_user.id,
+            created_at=now,
+            due_at=calculate_due_at(now, ticket.priority),
         )
         db.add(new_ticket)
         db.flush()
@@ -99,6 +103,7 @@ class AgentTicketService:
     ):
         """All tickets the agent created, is assigned to, or that belong to their team."""
         self._require_agent(current_user)
+        update_expired_slas(db)
 
         filters = [Ticket.created_by == current_user.id, Ticket.assigned_to == current_user.id]
         if current_user.team_id is not None:
@@ -111,6 +116,7 @@ class AgentTicketService:
 
     def get_ticket(self, id: int, db: Session, current_user: User):
         self._require_agent(current_user)
+        update_expired_slas(db)
         cache_key = f"ticket:{id}"
         cached = safe_get(cache_key)
         if cached:
@@ -143,6 +149,7 @@ class AgentTicketService:
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
         self._require_agent(current_user)
+        update_expired_slas(db)
 
         query = db.query(Ticket).filter(
             Ticket.created_by == current_user.id, Ticket.is_active == True
@@ -157,6 +164,7 @@ class AgentTicketService:
         priority: str | None = None, sort_by: str = "created_at", order: str = "desc",
     ):
         self._require_agent(current_user)
+        update_expired_slas(db)
 
         query = db.query(Ticket).filter(
             Ticket.assigned_to == current_user.id, Ticket.is_active == True
@@ -172,6 +180,7 @@ class AgentTicketService:
     ):
         """Own team tickets only."""
         self._require_agent(current_user)
+        update_expired_slas(db)
         if current_user.team_id is None:
             raise PermissionDeniedException("You are not assigned to a team")
 
@@ -192,6 +201,7 @@ class AgentTicketService:
         if not self._is_accessible(ticket, current_user):
             raise PermissionDeniedException("You do not have access to this ticket")
 
+        update_expired_slas(db)
         is_team_ticket = self._is_team_ticket(ticket, current_user)
         is_creator = ticket.created_by == current_user.id
         is_assignee = ticket.assigned_to == current_user.id
@@ -208,6 +218,13 @@ class AgentTicketService:
             if not is_team_ticket:
                 raise PermissionDeniedException("You can only change priority on your team's tickets")
             ticket.priority = ticket_update.priority
+            created_time = ticket.created_at or datetime.now(timezone.utc)
+            ticket.due_at = calculate_due_at(created_time, ticket_update.priority)
+            now = datetime.now(timezone.utc)
+            if ticket.status in [TicketStatus.open, TicketStatus.in_progress]:
+                ticket.sla_breached = ticket.due_at < now
+            elif ticket.resolved_at is not None:
+                ticket.sla_breached = ticket.resolved_at > ticket.due_at
 
         if ticket_update.status is not None:
             if not (is_creator or is_assignee or is_team_ticket):
@@ -220,7 +237,10 @@ class AgentTicketService:
                 )
             ticket.status = ticket_update.status
             if ticket_update.status == TicketStatus.resolved:
-                ticket.resolved_at = datetime.now(timezone.utc)
+                resolved_time = datetime.now(timezone.utc)
+                ticket.resolved_at = resolved_time
+                due_at = ticket.due_at or calculate_due_at(ticket.created_at or resolved_time, ticket.priority)
+                ticket.sla_breached = resolved_time > due_at
 
         if ticket_update.assigned_to == -1:
             if not is_team_ticket:

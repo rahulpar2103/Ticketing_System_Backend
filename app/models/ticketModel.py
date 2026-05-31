@@ -31,6 +31,8 @@ class Ticket(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     is_active = Column(Boolean, default=True, nullable=False, server_default=sa.true())
     resolved_at = Column(DateTime(timezone=True), nullable=True)
+    due_at = Column(DateTime(timezone=True), nullable=True)
+    sla_breached = Column(Boolean, default=False, nullable=False, server_default=sa.false())
 
     # Relationships
     assigned_user = relationship("User", back_populates="assigned_tickets", foreign_keys=[assigned_to])

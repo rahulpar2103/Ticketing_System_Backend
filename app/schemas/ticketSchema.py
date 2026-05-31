@@ -84,6 +84,8 @@ class TicketResponse(BaseModel):
     created_at: datetime | None = None
     updated_at: datetime | None = None
     resolved_at: datetime | None = None
+    due_at: datetime | None = None
+    sla_breached: bool = False
     comment_count: int = 0
     attachment_count: int = 0
     is_active: bool = True
