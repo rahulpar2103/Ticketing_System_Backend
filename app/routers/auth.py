@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.limiter import limiter
@@ -7,7 +7,7 @@ from app.dependencies.db import get_db
 from app.dependencies.user import get_current_user
 from app.services.userServices.auth import auth_service
 from app.schemas.userSchema import UserCreate, UserResponse, TokenResponse
-from app.core.email import send_welcome_email
+from app.tasks.email_tasks import send_welcome_email_task
 from app.db.redis import safe_setex
 from app.core.config import settings
 from app.dependencies.user import oauth2_scheme
@@ -26,13 +26,11 @@ def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db
 def register(
     request: Request,
     user: UserCreate,
-    background_tasks: BackgroundTasks,
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     new_user = auth_service.create_user(current_user, user, db)
-    background_tasks.add_task(
-        send_welcome_email,
+    send_welcome_email_task.delay(
         email=user.email,
         username=user.username,
         password=user.password,
