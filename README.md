@@ -50,6 +50,9 @@ All account creation is admin-controlled. There is no self-registration.
 | Testing | `pytest`, `FastAPI TestClient` |
 | Settings | `pydantic-settings` (`.env` file) |
 | File Storage | AWS S3 (presigned URL upload/download) |
+| Task Queue | Celery |
+| Real-time | WebSockets + Redis Pub/Sub |
+
 
 ---
 
@@ -69,7 +72,8 @@ All account creation is admin-controlled. There is no self-registration.
 - **Soft Deletes & Cascade**: users, teams, and tickets are deactivated via `is_active` flag; team deletion cascades to clear team/assignment references
 - **Reactivation**: admin-only endpoints to restore soft-deleted users, teams, and tickets
 - **Audit Trails**: records ticket actions (creation, updates, deletion) to track history
-- **Background Tasks**: welcome emails sent asynchronously on user creation
+- **Asynchronous Task Queue**: welcome emails sent asynchronously on user creation using Celery and Redis
+- **Real-Time WebSockets**: instant updates and toast notifications on ticket creation, properties, and comments across pages using WebSockets and Redis Pub/Sub
 - **File Attachments**: S3-backed file uploads using presigned URLs (upload, confirm, list, download, delete)
 - **Alembic Migrations**: schema changes are versioned and reproducible
 
@@ -174,11 +178,13 @@ Employee: open ──→ closed       (cancel / no longer needed)
 │   ├── alembic/                  # Migration scripts
 │   │   └── versions/             # One file per migration
 │   ├── core/
+│   │   ├── celery_app.py         # Celery application configuration
 │   │   ├── config.py             # Settings loaded from .env (pydantic-settings)
-│   │   ├── email.py              # Email sending (stub/background task)
+│   │   ├── email.py              # Email sending via SMTP
 │   │   ├── exceptions.py         # Custom exception classes
 │   │   ├── s3.py                 # boto3 S3 client helpers (presign, head, delete)
 │   │   ├── limiter.py            # slowapi Limiter instance
+│   │   ├── websocket.py          # WebSocket connection manager + Redis listener
 │   │   └── security.py           # Password hashing, JWT encode/decode
 │   ├── db/
 │   │   ├── database.py           # SQLAlchemy engine, session, Base
@@ -193,8 +199,6 @@ Employee: open ──→ closed       (cancel / no longer needed)
 │   │   ├── teamModel.py          # Team ORM model
 │   │   ├── ticketModel.py        # Ticket ORM model + Status/Priority enums
 │   │   └── userModel.py          # User ORM model + UserRole enum
-│   ├── schemas/
-│   │   ├── attachmentSchema.py   # AttachmentPresignRequest/Response, AttachmentResponse
 │   ├── routers/
 │   │   ├── attachments.py        # Attachment routes (presign, confirm, list, download, delete)
 │   │   ├── auth.py               # POST /auth/login, POST /auth/register
@@ -202,8 +206,10 @@ Employee: open ──→ closed       (cancel / no longer needed)
 │   │   ├── mainRouter.py         # Aggregates all routers
 │   │   ├── teams.py              # Team CRUD routes
 │   │   ├── tickets.py            # Ticket CRUD routes
-│   │   └── users.py              # User CRUD + password routes
+│   │   ├── users.py              # User CRUD + password routes
+│   │   └── websocket.py          # WebSocket connection endpoint
 │   ├── schemas/
+│   │   ├── attachmentSchema.py   # AttachmentPresignRequest/Response, AttachmentResponse
 │   │   ├── auditSchema.py        # AuditLogResponse schema
 │   │   ├── commentSchema.py      # CommentCreate, CommentUpdate, CommentResponse
 │   │   ├── pagination.py         # PaginatedResponse[T] generic wrapper
@@ -217,6 +223,8 @@ Employee: open ──→ closed       (cancel / no longer needed)
 │   │   ├── teamService/          # admin.py, agent.py, employee.py
 │   │   ├── ticketService/        # admin.py, agent.py, employee.py, utils.py
 │   │   └── userServices/         # admin.py, agent.py, employee.py, auth.py
+│   ├── tasks/
+│   │   └── email_tasks.py        # Celery asynchronous tasks
 │   ├── .env                      # Environment variables (not committed)
 │   ├── .env.example              # Template for .env
 │   ├── alembic.ini               # Alembic configuration
@@ -562,8 +570,8 @@ Action logging records `CREATED`, `UPDATED`, and `DELETED` events inside the `au
 ## Future Improvements
 
 - [x] **File Attachments**: S3-backed presigned URL upload/download for ticket attachments
-- [ ] **Email integration**: replace the print stub `send_welcome_email` with a real SMTP client
+- [x] **Email integration**: replace the print stub `send_welcome_email` with a real SMTP client (implemented via Celery + AWS SES SMTP)
 - [x] **Containerization**: Dockerfile and docker-compose for PostgreSQL, Redis, and the API
 - [ ] **Refresh tokens**: current JWTs have no refresh mechanism
-- [ ] **WebSocket notifications**: real-time updates when tickets are assigned or status changes
+- [x] **WebSocket notifications**: real-time updates when tickets are assigned or status changes (implemented via WebSockets + Redis Pub/Sub)
 - [ ] **Bulk operations**: update/delete multiple tickets at once
