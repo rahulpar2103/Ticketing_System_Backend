@@ -36,7 +36,23 @@ def create_comment(
 ):
     """Create a comment on a ticket. Behavior varies by role."""
     service = _get_comment_service(current_user.role)
-    return service.create_comment(ticket_id, body, db, current_user)
+    new_comment = service.create_comment(ticket_id, body, db, current_user)
+    try:
+        from fastapi.encoders import jsonable_encoder
+        from app.db.redis import redis_client
+        import json
+        payload = {
+            "type": "COMMENT_CREATED",
+            "data": {
+                "ticket_id": ticket_id,
+                "comment": jsonable_encoder(new_comment)
+            }
+        }
+        redis_client.publish("ticket_updates", json.dumps(payload))
+    except Exception as e:
+        from app.core.logger import logger
+        logger.error(f"WebSocket publish failed for comment create: {e}")
+    return new_comment
 
 
 @router.get("/tickets/{ticket_id}/comments", response_model=PaginatedResponse[CommentResponse])
@@ -95,4 +111,18 @@ def delete_comment(
 ):
     """Delete a comment. Ownership rules vary by role."""
     service = _get_comment_service(current_user.role)
-    return service.delete_comment(comment_id, db, current_user)
+    result = service.delete_comment(comment_id, db, current_user)
+    try:
+        from app.db.redis import redis_client
+        import json
+        payload = {
+            "type": "COMMENT_DELETED",
+            "data": {
+                "comment_id": comment_id
+            }
+        }
+        redis_client.publish("ticket_updates", json.dumps(payload))
+    except Exception as e:
+        from app.core.logger import logger
+        logger.error(f"WebSocket publish failed for comment delete: {e}")
+    return result

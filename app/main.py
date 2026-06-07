@@ -20,6 +20,13 @@ app = FastAPI(
     version="1.0.0",
 )
 
+@app.on_event("startup")
+async def startup_event():
+    import asyncio
+    from app.core.websocket import redis_pubsub_listener
+    asyncio.create_task(redis_pubsub_listener())
+
+
 # CORS
 app.add_middleware(
     CORSMiddleware,

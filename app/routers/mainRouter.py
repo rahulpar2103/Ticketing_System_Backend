@@ -5,6 +5,7 @@ from app.routers.teams import router as teams_router
 from app.routers.tickets import router as tickets_router
 from app.routers.comments import router as comments_router
 from app.routers.attachments import router as attachments_router
+from app.routers.websocket import router as websocket_router
 
 router = APIRouter()
 
@@ -14,3 +15,4 @@ router.include_router(teams_router)
 router.include_router(tickets_router)
 router.include_router(comments_router)
 router.include_router(attachments_router)
+router.include_router(websocket_router)

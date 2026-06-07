@@ -36,7 +36,20 @@ def create_ticket(
 ):
     """Create a new ticket. Behavior varies by role."""
     service = _get_ticket_service(current_user.role)
-    return service.create_ticket(ticket, db, current_user)
+    new_ticket = service.create_ticket(ticket, db, current_user)
+    try:
+        from fastapi.encoders import jsonable_encoder
+        from app.db.redis import redis_client
+        import json
+        payload = {
+            "type": "TICKET_CREATED",
+            "data": jsonable_encoder(new_ticket)
+        }
+        redis_client.publish("ticket_updates", json.dumps(payload))
+    except Exception as e:
+        from app.core.logger import logger
+        logger.error(f"WebSocket publish failed for ticket create: {e}")
+    return new_ticket
 
 
 
@@ -222,7 +235,20 @@ def update_ticket(
 ):
     """Update a ticket. Behavior varies by role."""
     service = _get_ticket_service(current_user.role)
-    return service.update_ticket(ticket_id, ticket, db, current_user)
+    updated_ticket = service.update_ticket(ticket_id, ticket, db, current_user)
+    try:
+        from fastapi.encoders import jsonable_encoder
+        from app.db.redis import redis_client
+        import json
+        payload = {
+            "type": "TICKET_UPDATED",
+            "data": jsonable_encoder(updated_ticket)
+        }
+        redis_client.publish("ticket_updates", json.dumps(payload))
+    except Exception as e:
+        from app.core.logger import logger
+        logger.error(f"WebSocket publish failed for ticket update: {e}")
+    return updated_ticket
 
 
 
@@ -242,7 +268,19 @@ def delete_ticket(
     - Employee: can only delete own open tickets
     """
     service = _get_ticket_service(current_user.role)
-    return service.delete_ticket(ticket_id, db, current_user)
+    result = service.delete_ticket(ticket_id, db, current_user)
+    try:
+        from app.db.redis import redis_client
+        import json
+        payload = {
+            "type": "TICKET_DELETED",
+            "data": {"ticket_id": ticket_id}
+        }
+        redis_client.publish("ticket_updates", json.dumps(payload))
+    except Exception as e:
+        from app.core.logger import logger
+        logger.error(f"WebSocket publish failed for ticket delete: {e}")
+    return result
 
 
 
@@ -256,4 +294,16 @@ def reactivate_ticket(
     current_user: User = Depends(get_current_user),
 ):
     """Re-enable a soft-deleted ticket. Admin only."""
-    return ticket_service_admin.reactivate_ticket(ticket_id, db, current_user)
+    result = ticket_service_admin.reactivate_ticket(ticket_id, db, current_user)
+    try:
+        from app.db.redis import redis_client
+        import json
+        payload = {
+            "type": "TICKET_REACTIVATED",
+            "data": {"ticket_id": ticket_id}
+        }
+        redis_client.publish("ticket_updates", json.dumps(payload))
+    except Exception as e:
+        from app.core.logger import logger
+        logger.error(f"WebSocket publish failed for ticket reactivate: {e}")
+    return result
