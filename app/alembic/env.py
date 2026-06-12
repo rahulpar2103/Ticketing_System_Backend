@@ -13,7 +13,8 @@ from app.core.config import settings
 from app.db.database import Base
 
 # Import models for autogenerate to detect tables
-from app.models import userModel, teamModel, ticketModel, commentModel, auditModel, attachmentModel
+from app.models import userModel, teamModel, ticketModel, commentModel, auditModel, attachmentModel, vectorDocumentModel
+
 
 # Alembic config
 config = context.config

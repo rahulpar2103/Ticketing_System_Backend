@@ -38,6 +38,12 @@ def create_ticket(
     service = _get_ticket_service(current_user.role)
     new_ticket = service.create_ticket(ticket, db, current_user)
     try:
+        from app.tasks.rag_tasks import index_ticket_task
+        index_ticket_task.delay(new_ticket.id)
+    except Exception as e:
+        from app.core.logger import logger
+        logger.error(f"RAG indexing trigger failed for ticket create: {e}")
+    try:
         from fastapi.encoders import jsonable_encoder
         from app.db.redis import redis_client
         import json
@@ -237,6 +243,12 @@ def update_ticket(
     service = _get_ticket_service(current_user.role)
     updated_ticket = service.update_ticket(ticket_id, ticket, db, current_user)
     try:
+        from app.tasks.rag_tasks import index_ticket_task
+        index_ticket_task.delay(updated_ticket.id)
+    except Exception as e:
+        from app.core.logger import logger
+        logger.error(f"RAG indexing trigger failed for ticket update: {e}")
+    try:
         from fastapi.encoders import jsonable_encoder
         from app.db.redis import redis_client
         import json
@@ -270,6 +282,12 @@ def delete_ticket(
     service = _get_ticket_service(current_user.role)
     result = service.delete_ticket(ticket_id, db, current_user)
     try:
+        from app.tasks.rag_tasks import delete_ticket_vector_task
+        delete_ticket_vector_task.delay(ticket_id)
+    except Exception as e:
+        from app.core.logger import logger
+        logger.error(f"RAG indexing delete trigger failed for ticket: {e}")
+    try:
         from app.db.redis import redis_client
         import json
         payload = {
@@ -295,6 +313,12 @@ def reactivate_ticket(
 ):
     """Re-enable a soft-deleted ticket. Admin only."""
     result = ticket_service_admin.reactivate_ticket(ticket_id, db, current_user)
+    try:
+        from app.tasks.rag_tasks import index_ticket_task
+        index_ticket_task.delay(ticket_id)
+    except Exception as e:
+        from app.core.logger import logger
+        logger.error(f"RAG indexing trigger failed for ticket reactivate: {e}")
     try:
         from app.db.redis import redis_client
         import json

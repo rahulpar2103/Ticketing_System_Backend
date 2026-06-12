@@ -38,6 +38,12 @@ def create_comment(
     service = _get_comment_service(current_user.role)
     new_comment = service.create_comment(ticket_id, body, db, current_user)
     try:
+        from app.tasks.rag_tasks import index_comment_task
+        index_comment_task.delay(new_comment.id)
+    except Exception as e:
+        from app.core.logger import logger
+        logger.error(f"RAG indexing trigger failed for comment create: {e}")
+    try:
         from fastapi.encoders import jsonable_encoder
         from app.db.redis import redis_client
         import json
@@ -98,7 +104,14 @@ def update_comment(
 ):
     """Update a comment. Behavior varies by role."""
     service = _get_comment_service(current_user.role)
-    return service.update_comment(comment_id, body, db, current_user)
+    updated_comment = service.update_comment(comment_id, body, db, current_user)
+    try:
+        from app.tasks.rag_tasks import index_comment_task
+        index_comment_task.delay(comment_id)
+    except Exception as e:
+        from app.core.logger import logger
+        logger.error(f"RAG indexing trigger failed for comment update: {e}")
+    return updated_comment
 
 
 @router.delete("/comments/{comment_id}", response_model=dict)
@@ -112,6 +125,12 @@ def delete_comment(
     """Delete a comment. Ownership rules vary by role."""
     service = _get_comment_service(current_user.role)
     result = service.delete_comment(comment_id, db, current_user)
+    try:
+        from app.tasks.rag_tasks import delete_comment_vector_task
+        delete_comment_vector_task.delay(comment_id)
+    except Exception as e:
+        from app.core.logger import logger
+        logger.error(f"RAG indexing delete trigger failed for comment: {e}")
     try:
         from app.db.redis import redis_client
         import json

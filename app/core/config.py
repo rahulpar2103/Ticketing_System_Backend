@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     MAIL_FROM: str = ""
 
+    # Gemini LLM / RAG Configuration
+    GEMINI_API_KEY: str = ""
+    EMBEDDING_MODEL: str = "models/text-embedding-004"
+    LLM_MODEL: str = "gemini-2.5-flash"
+
+
     CORS_ORIGINS: list[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
