@@ -1,37 +1,9 @@
-# Ticketing System - Internal Office Help Desk API
+# SupportFlow - Internal Help Desk API
 
-A backend REST API for managing internal support tickets in an organization. Built with **FastAPI**, it implements strict role-based access control across three user roles (**Admin**, **Agent**, and **Employee**) with Redis caching, JWT authentication, and per-role business logic enforced at the service layer.
+A production-grade backend REST API for managing internal support tickets. Built with **FastAPI** and **PostgreSQL**, it features role-based access control across three user tiers, real-time WebSocket updates, SLA tracking, S3 file attachments, async email delivery via Celery, and a comprehensive test suite - all containerized with Docker and deployed with CI/CD.
 
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Tech Stack](#tech-stack)
-- [Features](#features)
-- [Access Control Matrix](#access-control-matrix)
-- [Folder Structure](#folder-structure)
-- [Setup and Installation](#setup-and-installation)
-- [Environment Variables](#environment-variables)
-- [Running the App](#running-the-app)
-- [Database Migrations](#database-migrations)
-- [Seeding Sample Data](#seeding-sample-data)
-- [API Endpoints](#api-endpoints)
-- [Testing](#testing)
-- [Implementation Details](#implementation-details)
-- [Future Improvements](#future-improvements)
-
----
-
-## Overview
-
-This system is designed for an **internal office environment** where:
-
-- **Admins** have full control: they create user accounts, manage teams, and oversee all tickets and comments across the organization.
-- **Agents** work within their assigned team: they can view, create, and manage tickets scoped to their team, assign tickets to teammates, and follow a strict status workflow.
-- **Employees** have limited access: they raise tickets, track their own issues, and can comment on tickets they're involved in.
-
-All account creation is admin-controlled. There is no self-registration.
+**Live API:** [https://ticketing-system-backend-wpux.onrender.com](https://ticketing-system-backend-wpux.onrender.com)
+&nbsp;|&nbsp; **Frontend Repo:** [Ticketing_System_Frontend](https://github.com/Anonymous21-03/Ticketing_System_Frontend)
 
 ---
 
@@ -40,133 +12,91 @@ All account creation is admin-controlled. There is no self-registration.
 | Layer | Technology |
 |---|---|
 | Framework | FastAPI |
-| ORM | SQLAlchemy (Core + ORM) |
-| Database | PostgreSQL |
+| Language | Python 3.12+ |
+| ORM | SQLAlchemy 2.0 (Core + ORM) |
+| Database | PostgreSQL 15 |
 | Migrations | Alembic |
-| Caching | Redis |
-| Auth | JWT (`PyJWT`), `passlib` + `bcrypt` |
-| Validation | Pydantic v2 |
-| Rate Limiting | `slowapi` |
-| Testing | `pytest`, `FastAPI TestClient` |
-| Settings | `pydantic-settings` (`.env` file) |
+| Caching | Redis 7 |
+| Auth | JWT (PyJWT) + bcrypt via passlib, token blacklisting via Redis |
+| Validation | Pydantic v2, pydantic-settings |
+| Rate Limiting | slowapi |
+| Testing | pytest (209+ tests), FastAPI TestClient |
 | File Storage | AWS S3 (presigned URL upload/download) |
-| Task Queue | Celery |
+| Email | SMTP (AWS SES) via Celery async tasks |
+| Task Queue | Celery with Redis broker |
 | Real-time | WebSockets + Redis Pub/Sub |
-
+| Logging | Structured JSON logging (custom formatter) |
+| Containerization | Docker, Docker Compose |
+| CI/CD | GitHub Actions (automated test suite on every push/PR) |
+| Deployment | Render (backend), Vercel (frontend) |
 
 ---
 
 ## Features
 
-- **JWT Authentication**: login with username or email; tokens verified on every protected route
-- **Role-Based Access Control**: three roles with strictly scoped permissions enforced at the service layer
-- **Ticket Lifecycle**: state machine for status transitions with role-specific rules
-- **SLA Management & Tracking**: auto-calculates ticket deadlines (`due_at`) on creation and priority changes based on priority tiers (`low` = 48h, `medium` = 24h, `high` = 12h, `urgent` = 4h), and marks overdue tickets as breached dynamically
-- **Search & Filtering**: tickets searchable by keyword (title/description), filterable by status, priority; users searchable by name/username/email, filterable by role, team, active status
-- **Sorting**: all list endpoints support `sort_by` and `order` query params with field validation
-- **Pagination Metadata**: all list endpoints return `{ items, total, limit, offset, has_more }` instead of bare arrays
-- **CORS Middleware**: configurable allowed origins for frontend integration
-- **Redis Caching**: detail responses cached with prefix-based invalidation on mutations
-- **Rate Limiting**: per-endpoint limits via `slowapi` (e.g., 5/min on login, 30/min on reads)
-- **Health Check**: `GET /health` checks API, database, and Redis connectivity
-- **Soft Deletes & Cascade**: users, teams, and tickets are deactivated via `is_active` flag; team deletion cascades to clear team/assignment references
-- **Reactivation**: admin-only endpoints to restore soft-deleted users, teams, and tickets
-- **Audit Trails**: records ticket actions (creation, updates, deletion) to track history
-- **Asynchronous Task Queue**: welcome emails sent asynchronously on user creation using Celery and Redis
-- **Real-Time WebSockets**: instant updates and toast notifications on ticket creation, properties, and comments across pages using WebSockets and Redis Pub/Sub
-- **File Attachments**: S3-backed file uploads using presigned URLs (upload, confirm, list, download, delete)
-- **Alembic Migrations**: schema changes are versioned and reproducible
+### Authentication & Security
+- JWT token-based authentication with login via username or email
+- Token revocation/logout via Redis blocklist - revoked tokens are rejected on subsequent requests
+- Role-based access control enforced at the **service layer**, not just routes - business logic is testable without HTTP
+- Per-endpoint rate limiting (e.g., 5/min on login, 30/min on reads, 20/min on mutations)
 
----
+### Ticket Lifecycle & SLA
+- Four-status state machine: `open → in_progress → resolved → closed` with role-specific transition rules
+- SLA management: auto-calculates `due_at` deadlines based on priority tiers (low: 48h, medium: 24h, high: 12h, urgent: 4h)
+- Lazy SLA breach detection: marks overdue tickets as breached on query
+- `resolved_at` timestamp auto-recorded when status transitions to resolved
 
-## Access Control Matrix
+### Real-Time Updates
+- WebSocket endpoint with JWT-based authentication
+- Redis Pub/Sub broadcasts ticket creates, updates, deletes, and comment events to all connected clients
+- Frontend receives instant toast notifications and live data refreshes
 
-### Users
+### File Attachments
+- S3-backed file upload using two-step presigned URL flow (presign → upload to S3 → confirm)
+- Presigned download URLs generated on demand for secure, time-limited access
+- Uploader or admin can delete attachments (S3 object + DB record)
 
-| Action | Admin | Agent | Employee |
+### RBAC - Three User Roles
+
+| Capability | Admin | Agent | Employee |
 |---|:---:|:---:|:---:|
-| Create user account | ✅ | ❌ | ❌ |
-| List all users | ✅ | ❌ | ❌ |
-| View any user by ID | ✅ | ❌ | ❌ |
-| View own profile | ✅ | ✅ | ✅ |
-| View teammate's profile | ✅ | ✅ (same team only) | ❌ |
-| Update any user (name, email, role, team) | ✅ | ❌ | ❌ |
-| Soft-delete a user | ✅ | ❌ | ❌ |
-| Reactivate a soft-deleted user | ✅ | ❌ | ❌ |
-| Reset any user's password (no current password needed) | ✅ | ❌ | ❌ |
-| Change own password (requires current password) | ✅ via reset | ✅ | ✅ |
+| Create user accounts | ✅ | ❌ | ❌ |
+| View/manage all users, teams, tickets | ✅ | ❌ | ❌ |
+| Manage tickets within assigned team | ✅ | ✅ | ❌ |
+| Assign/reassign tickets to team members | ✅ | ✅ | ❌ |
+| Create tickets and comment on own tickets | ✅ | ✅ | ✅ |
+| Change priority | ✅ | ✅ | ❌ |
+| Set any status freely | ✅ | ❌ | ❌ |
+| Status transitions (strict state machine) | - | ✅ | Limited |
 
-### Teams
+> **Agent transitions:** `open → in_progress → resolved → closed` (strict sequential)
+> **Employee transitions:** `open → closed`, `resolved → closed` only
 
-| Action | Admin | Agent | Employee |
-|---|:---:|:---:|:---:|
-| Create team | ✅ | ❌ | ❌ |
-| List all teams | ✅ | ❌ | ❌ |
-| View any team by ID | ✅ | ❌ | ❌ |
-| View own team | ✅ | ✅ | ✅ (if assigned) |
-| Update team (name, description) | ✅ | ❌ | ❌ |
-| Delete team (soft-delete + cascade) | ✅ | ❌ | ❌ |
-| Reactivate a soft-deleted team | ✅ | ❌ | ❌ |
-| View team stats (ticket counts, member count) | ✅ | ❌ | ❌ |
-| View team members | ✅ (any team) | ✅ (own team) | ✅ (own team) |
+### Soft Deletes & Reactivation
+- Users, teams, and tickets are never hard-deleted - `is_active = false` removes them from queries
+- Team deletion cascades: clears `team_id` and `assigned_to` on affected users/tickets
+- Admin-only reactivation endpoints to restore any soft-deleted resource
 
-### Tickets
+### Search, Filter & Pagination
+- Full-text search on tickets (title + description) and users (name, username, email)
+- Multi-value filters: status, priority, role, team, active status (comma-separated)
+- Configurable sorting with `sort_by` and `order` on all list endpoints
+- Paginated response format: `{ items, total, limit, offset, has_more }`
 
-| Action | Admin | Agent | Employee |
-|---|:---:|:---:|:---:|
-| Create ticket | ✅ (assign to anyone/any team) | ✅ (assign within own team) | ✅ (no assignee/team) |
-| View all tickets | ✅ | ❌ | ❌ |
-| View own tickets (created/assigned/team) | ✅ | ✅ | ✅ (created or assigned only) |
-| View ticket by ID | ✅ (any) | ✅ (accessible¹) | ✅ (created or assigned) |
-| View tickets by team | ✅ (any team) | ✅ (own team) | ❌ |
-| View tickets assigned to a specific user | ✅ | ❌ | ❌ |
-| Search/filter/sort tickets | ✅ (all tickets) | ✅ (accessible tickets) | ✅ (own tickets) |
-| Edit title/description | ✅ | ✅ (own created only) | ✅ (own created, open status only) |
-| Change priority | ✅ | ✅ (team tickets) | ❌ |
-| Change status | ✅ (any transition) | ✅ (valid transitions²) | ✅ (open → closed, resolved → closed) |
-| Assign/reassign user | ✅ (any user) | ✅ (own team members) | ❌ |
-| Change team | ✅ | ✅ (transfers allowed³) | ❌ |
-| Unassign user (`assigned_to = -1`) | ✅ | ✅ (team tickets) | ❌ |
-| Remove team (`team_id = 0`) | ✅ | ❌ | ❌ |
-| Delete ticket (soft-delete) | ✅ (any ticket) | ✅ (accessible tickets) | ✅ (own open tickets only) |
-| Reactivate a soft-deleted ticket | ✅ | ❌ | ❌ |
-| View ticket stats (by status/priority) | ✅ | ❌ | ❌ |
-| View ticket audit history (logs) | ✅ | ✅ (accessible tickets) | ✅ (own tickets) |
+### Audit Trails
+- Records `CREATED`, `UPDATED`, and `DELETED` events with JSON change diffs
+- Ticket operation and audit log commit in a single DB transaction
+- Viewable per-ticket audit history endpoint with role-scoped access
 
-> ¹ **Accessible** for agents = ticket they created, are assigned to, or belongs to their team.  
-> ² **Valid transitions** for agents: `open → in_progress → resolved → closed` (strict state machine).  
-> ³ Agent can transfer a ticket to a different team, but the current assignee is cleared.
+### Email & Background Tasks
+- Welcome emails sent asynchronously on user creation via Celery + Redis
+- HTML email templates with credentials delivered through AWS SES SMTP
+- Celery worker runs alongside the API in the Docker entrypoint
 
-### Comments
-
-| Action | Admin | Agent | Employee |
-|---|:---:|:---:|:---:|
-| Create comment on a ticket | ✅ (any ticket) | ✅ (accessible tickets) | ✅ (own tickets) |
-| View comments on a ticket | ✅ (any ticket) | ✅ (accessible tickets) | ✅ (own tickets) |
-| View single comment by ID | ✅ | ✅ (accessible tickets) | ✅ (own tickets) |
-| Edit a comment | ✅ (any comment) | ✅ (own comments only) | ✅ (own comments only) |
-| Delete a comment | ✅ (any comment) | ✅ (own comments only) | ✅ (own comments only) |
-
-### Attachments
-
-| Action | Admin | Agent | Employee |
-|---|:---:|:---:|:---:|
-| Upload attachment to a ticket | ✅ (any ticket) | ✅ (accessible tickets) | ✅ (own tickets) |
-| List attachments on a ticket | ✅ (any ticket) | ✅ (accessible tickets) | ✅ (own tickets) |
-| Download an attachment | ✅ (any ticket) | ✅ (accessible tickets) | ✅ (own tickets) |
-| Delete an attachment | ✅ (any attachment) | ✅ (own uploads only) | ✅ (own uploads only) |
-
-### Ticket Status Transitions by Role
-
-```
-Admin:    Can set any status freely (no restrictions)
-
-Agent:    open ──→ in_progress ──→ resolved ──→ closed
-          (strict sequential, no skipping)
-
-Employee: open ──→ closed       (cancel / no longer needed)
-          resolved ──→ closed   (confirm fix)
-```
+### Observability
+- Structured JSON request logging with method, path, status code, response time, and client IP
+- Custom exception hierarchy with centralized handlers - all errors return consistent JSON responses
+- Health check endpoint (`GET /health`) probes API, PostgreSQL, and Redis connectivity
 
 ---
 
@@ -175,79 +105,34 @@ Employee: open ──→ closed       (cancel / no longer needed)
 ```
 .
 ├── app/
-│   ├── alembic/                  # Migration scripts
-│   │   └── versions/             # One file per migration
+│   ├── alembic/                  # Alembic migration scripts
 │   ├── core/
-│   │   ├── celery_app.py         # Celery application configuration
-│   │   ├── config.py             # Settings loaded from .env (pydantic-settings)
-│   │   ├── email.py              # Email sending via SMTP
-│   │   ├── exceptions.py         # Custom exception classes
-│   │   ├── s3.py                 # boto3 S3 client helpers (presign, head, delete)
-│   │   ├── limiter.py            # slowapi Limiter instance
-│   │   ├── websocket.py          # WebSocket connection manager + Redis listener
-│   │   └── security.py           # Password hashing, JWT encode/decode
+│   │   ├── celery_app.py         # Celery configuration (Redis broker)
+│   │   ├── config.py             # pydantic-settings from .env
+│   │   ├── email.py              # SMTP email sender + HTML templates
+│   │   ├── exceptions.py         # Custom exception classes (8 types)
+│   │   ├── limiter.py            # slowapi rate limiter instance
+│   │   ├── logger.py             # Structured JSON log formatter
+│   │   ├── s3.py                 # boto3 S3 helpers (presign, head, delete)
+│   │   ├── security.py           # Password hashing, JWT encode/decode
+│   │   ├── sla.py                # SLA tier calculations + breach updater
+│   │   └── websocket.py          # WebSocket manager + Redis Pub/Sub listener
 │   ├── db/
 │   │   ├── database.py           # SQLAlchemy engine, session, Base
-│   │   └── redis.py              # Redis client + safe helper functions
-│   ├── dependencies/
-│   │   ├── db.py                 # get_db() dependency
-│   │   └── user.py               # get_current_user() + OAuth2 scheme
-│   ├── models/
-│   │   ├── attachmentModel.py    # Attachment ORM model + AttachmentStatus enum
-│   │   ├── auditModel.py         # AuditLog ORM model
-│   │   ├── commentModel.py       # Comment ORM model
-│   │   ├── teamModel.py          # Team ORM model
-│   │   ├── ticketModel.py        # Ticket ORM model + Status/Priority enums
-│   │   └── userModel.py          # User ORM model + UserRole enum
-│   ├── routers/
-│   │   ├── attachments.py        # Attachment routes (presign, confirm, list, download, delete)
-│   │   ├── auth.py               # POST /auth/login, POST /auth/register
-│   │   ├── comments.py           # Comment CRUD routes
-│   │   ├── mainRouter.py         # Aggregates all routers
-│   │   ├── teams.py              # Team CRUD routes
-│   │   ├── tickets.py            # Ticket CRUD routes
-│   │   ├── users.py              # User CRUD + password routes
-│   │   └── websocket.py          # WebSocket connection endpoint
-│   ├── schemas/
-│   │   ├── attachmentSchema.py   # AttachmentPresignRequest/Response, AttachmentResponse
-│   │   ├── auditSchema.py        # AuditLogResponse schema
-│   │   ├── commentSchema.py      # CommentCreate, CommentUpdate, CommentResponse
-│   │   ├── pagination.py         # PaginatedResponse[T] generic wrapper
-│   │   ├── teamSchema.py         # TeamCreate, TeamUpdate, TeamResponse
-│   │   ├── ticketSchema.py       # TicketCreate, TicketUpdate, TicketResponse
-│   │   └── userSchema.py         # UserCreate, UserUpdate, UserResponse, etc.
-│   ├── services/
-│   │   ├── attachmentService.py  # S3 + DB logic for attachments
-│   │   ├── auditService.py       # log_audit_event, get_ticket_audit_logs
-│   │   ├── commentService/       # admin.py, agent.py, employee.py, utils.py
-│   │   ├── teamService/          # admin.py, agent.py, employee.py
-│   │   ├── ticketService/        # admin.py, agent.py, employee.py, utils.py
-│   │   └── userServices/         # admin.py, agent.py, employee.py, auth.py
-│   ├── tasks/
-│   │   └── email_tasks.py        # Celery asynchronous tasks
-│   ├── .env                      # Environment variables (not committed)
-│   ├── .env.example              # Template for .env
-│   ├── alembic.ini               # Alembic configuration
-│   └── main.py                   # FastAPI app, CORS, health check, exception handlers
-├── scripts/
-│   └── seed.py                   # Database seed script with sample data
-├── tests/
-│   ├── conftest.py               # Shared fixtures, DB setup, role-based TestClients
-│   ├── test_auth_routes.py       # Auth endpoint tests
-│   ├── test_auth_service.py      # Auth service unit tests
-│   ├── test_comment_routes.py    # Comment endpoint tests
-│   ├── test_comment_services.py  # Comment service unit tests
-│   ├── test_schemas.py           # Pydantic schema validation tests
-│   ├── test_security.py          # JWT and password hashing tests
-│   ├── test_team_routes.py       # Team endpoint tests
-│   ├── test_team_services.py     # Team service unit tests
-│   ├── test_ticket_routes.py     # Ticket endpoint tests
-│   ├── test_ticket_services.py   # Ticket service unit tests
-│   ├── test_user_routes.py       # User endpoint tests
-│   └── test_user_services.py     # User service unit tests
-├── pytest.ini
-├── requirements.txt
-└── README.md
+│   │   └── redis.py              # Redis client + safe_* helper wrappers
+│   ├── dependencies/             # FastAPI DI: get_db(), get_current_user()
+│   ├── models/                   # SQLAlchemy ORM models (6 tables)
+│   ├── routers/                  # API route definitions (8 modules)
+│   ├── schemas/                  # Pydantic request/response schemas
+│   ├── services/                 # Business logic split by role (admin/agent/employee)
+│   └── tasks/                    # Celery async tasks (email)
+├── tests/                        # pytest test suite (14 test files)
+├── scripts/seed.py               # Database seeder (5 teams, 15 users, 13 tickets)
+├── .github/workflows/ci-cd.yml   # GitHub Actions CI pipeline
+├── Dockerfile                    # Python 3.14-slim container
+├── docker-compose.yml            # FastAPI + PostgreSQL + Redis
+├── entrypoint.sh                 # Runs migrations, starts Celery + Uvicorn
+└── requirements.txt
 ```
 
 ---
@@ -256,25 +141,21 @@ Employee: open ──→ closed       (cancel / no longer needed)
 
 ### Prerequisites
 
-- Python 3.11+
-- PostgreSQL (two databases: one for development, one for testing)
+- Python 3.12+
+- PostgreSQL (two databases: one for dev, one for tests)
 - Redis
 
-### Install dependencies
+### Install Dependencies
 
 ```bash
-# Create and activate a virtual environment
 python -m venv venv
 source venv/bin/activate        # Linux/macOS
 venv\Scripts\activate           # Windows
 
-# Install packages
 pip install -r requirements.txt
 ```
 
----
-
-## Environment Variables
+### Environment Variables
 
 Copy the template and fill in your values:
 
@@ -285,88 +166,106 @@ cp app/.env.example app/.env
 | Variable | Description | Example |
 |---|---|---|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql+psycopg2://user:pass@localhost:5432/ticketing_db` |
-| `TEST_DATABASE_URL` | Test database connection string | `postgresql+psycopg2://user:pass@localhost:5432/ticketing_test` |
-| `DB_POOL_SIZE` | SQLAlchemy connection pool size | `5` |
-| `DB_MAX_OVERFLOW` | Max overflow connections | `10` |
-| `DEBUG` | Enable SQL echo logging | `true` |
+| `TEST_DATABASE_URL` | Test database connection | `postgresql+psycopg2://user:pass@localhost:5432/ticketing_test` |
 | `SECRET_KEY` | JWT signing key (min 32 chars) | `python -c "import secrets; print(secrets.token_hex(32))"` |
-| `ALGORITHM` | JWT algorithm | `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Token expiry | `300` |
 | `REDIS_URL` | Redis connection string | `redis://localhost:6379` |
-| `CORS_ORIGINS` | Allowed origins (JSON array) | `["http://localhost:3000"]` |
 | `AWS_ACCESS_KEY_ID` | AWS credentials for S3 | `AKIA...` |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret key | `...` |
-| `AWS_REGION` | S3 bucket region | `us-east-1` |
-| `S3_BUCKET_NAME` | S3 bucket for file attachments | `my-ticketing-attachments` |
+| `S3_BUCKET_NAME` | S3 bucket for attachments | `my-ticketing-attachments` |
+| `SMTP_HOST` | AWS SES SMTP endpoint | `email-smtp.us-east-1.amazonaws.com` |
 
 ---
 
 ## Running the App
 
-### Option 1: Running Locally
+### Option 1: Local
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-The API will be available at `http://localhost:8000`.
-
-### Option 2: Running with Docker (Recommended)
-
-We provide a fully containerized setup using **Docker Compose** that bundles FastAPI, PostgreSQL, and Redis:
+### Option 2: Docker (Recommended)
 
 ```bash
-# Start all services in the background
 docker compose up -d
-
-# View active logs
 docker compose logs -f web
 
-# Run tests in the containerized environment
+# Run tests inside the container
 docker compose exec web pytest
 
-# Seed sample data into the database
+# Seed sample data
 docker compose exec web python scripts/seed.py
 ```
-
-The containerized API is accessible at `http://localhost:8000`.
 
 | URL | Description |
 |---|---|
 | `http://localhost:8000/docs` | Interactive Swagger UI |
-| `http://localhost:8000/redoc` | ReDoc documentation |
+| `http://localhost:8000/redoc` | ReDoc API documentation |
 | `http://localhost:8000/health` | Health check (API + DB + Redis) |
 
 ---
 
-## Database Migrations
+## API Endpoints
+
+### Auth
+
+| Method | Endpoint | Description | Auth |
+|---|---|---|:---:|
+| `POST` | `/auth/login` | Login (username/email + password) | No |
+| `POST` | `/auth/logout` | Revoke token via Redis blocklist | Yes |
+| `POST` | `/auth/register` | Create user (triggers async welcome email) | Admin |
+
+### Users - 8 endpoints
+
+`GET /users/me` · `GET /users` · `GET /users/{id}` · `PATCH /users/{id}` · `DELETE /users/{id}` · `PATCH /users/{id}/reactivate` · `PATCH /users/{id}/password` · `PATCH /users/{id}/reset-password`
+
+### Teams - 8 endpoints
+
+`POST /teams` · `GET /teams` · `GET /teams/{id}` · `PUT /teams/{id}` · `DELETE /teams/{id}` · `PATCH /teams/{id}/reactivate` · `GET /teams/{id}/stats` · `GET /teams/{id}/members`
+
+### Tickets - 12 endpoints
+
+`POST /tickets` · `GET /tickets` · `GET /tickets/created-by-me` · `GET /tickets/assigned-to-me` · `GET /tickets/team/{id}` · `GET /tickets/user/{id}/assigned` · `GET /tickets/stats` · `GET /tickets/{id}` · `PATCH /tickets/{id}` · `DELETE /tickets/{id}` · `PATCH /tickets/{id}/reactivate` · `GET /tickets/{id}/history`
+
+### Comments - 5 endpoints
+
+`POST /tickets/{id}/comments` · `GET /tickets/{id}/comments` · `GET /comments/{id}` · `PATCH /comments/{id}` · `DELETE /comments/{id}`
+
+### Attachments - 5 endpoints
+
+`POST /tickets/{id}/attachments/presign` · `POST /tickets/{id}/attachments/{aid}/confirm` · `GET /tickets/{id}/attachments` · `GET /tickets/{id}/attachments/{aid}/download` · `DELETE /tickets/{id}/attachments/{aid}`
+
+### WebSocket
+
+`WS /ws?token=<jwt>` - Authenticated WebSocket for real-time ticket and comment updates
+
+---
+
+## Testing
+
+Tests use a separate PostgreSQL database with per-test transaction rollback. Redis is auto-mocked.
 
 ```bash
-# Apply all migrations
-alembic -c app/alembic.ini upgrade head
-
-# Create a new migration after model changes
-alembic -c app/alembic.ini revision --autogenerate -m "describe_your_change"
+pytest -v
 ```
 
-### Migration History
-
-| Revision | Description |
+| Test File | Covers |
 |---|---|
-| `5f7370578a15` | Initial schema (users, teams, tickets, comments) |
-| `15107cde5f31` | Add `is_active` to tickets |
-| `1e20803a61b8` | Add `resolved_at` to tickets |
-| `7fb6b4390738` | Make `is_active` non-nullable with backfill |
-| `f16a2694d019` | Add unique constraint to `teams.name` |
-| `c69b827e06f9` | Add `audit_logs` table |
-| `af70f505f73e` | Add `attachments` table |
-| `620076afd572` | Add SLA fields to tickets (`due_at`, `sla_breached`) |
+| `test_auth_service.py` / `test_auth_routes.py` | User creation, login, duplicate detection, HTTP endpoints |
+| `test_user_services.py` / `test_user_routes.py` | CRUD for all 3 roles, password changes |
+| `test_team_services.py` / `test_team_routes.py` | Create, read, update, delete, members, cascade |
+| `test_ticket_services.py` / `test_ticket_routes.py` | CRUD, status transitions, assignment rules |
+| `test_comment_services.py` / `test_comment_routes.py` | CRUD, ownership checks |
+| `test_sla.py` | SLA tier calculations, breach detection |
+| `test_schemas.py` | Pydantic field validation, length limits |
+| `test_security.py` | JWT creation, verification, expiry, password hashing |
+
+### CI/CD
+
+GitHub Actions runs the full test suite on every push and PR to `master` with containerized PostgreSQL and Redis service containers.
 
 ---
 
 ## Seeding Sample Data
-
-Populate the database with realistic office data (5 teams, 15 users, 13 tickets, 20 comments):
 
 ```bash
 python scripts/seed.py
@@ -374,204 +273,8 @@ python scripts/seed.py
 
 All seeded users share the password: `Password@123`
 
-| Role | Users |
+| Role | Usernames |
 |---|---|
 | Admin | `rahul`, `priya` |
 | Agent | `ankit`, `sneha`, `rohan`, `kavita`, `arun`, `meera`, `vikram` |
 | Employee | `deepak`, `pooja`, `suresh`, `nisha`, `amit`, `lakshmi` |
-
----
-
-## API Endpoints
-
-### Authentication
-
-| Method | Endpoint | Description | Auth |
-|---|---|---|:---:|
-| `POST` | `/auth/login` | Login with username/email + password | No |
-| `POST` | `/auth/logout` | Revoke current access token | All roles |
-| `POST` | `/auth/register` | Create a new user account | Admin |
-
-### Users
-
-| Method | Endpoint | Description | Auth |
-|---|---|---|:---:|
-| `GET` | `/users/me` | Get current user's profile | All roles |
-| `GET` | `/users` | List all users (paginated, searchable, filterable, sortable) | Admin |
-| `GET` | `/users/{id}` | Get user by ID | Role-scoped |
-| `PATCH` | `/users/{id}` | Update user profile | Admin |
-| `DELETE` | `/users/{id}` | Soft-delete user | Admin |
-| `PATCH` | `/users/{id}/reactivate` | Re-enable a soft-deleted user | Admin |
-| `PATCH` | `/users/{id}/password` | Change own password | Agent, Employee |
-| `PATCH` | `/users/{id}/reset-password` | Reset any user's password | Admin |
-
-#### User Query Parameters
-
-| Parameter | Type | Description |
-|---|---|---|
-| `search` | `string` | Search by name, username, or email (case-insensitive) |
-| `role` | `string` | Filter by role (comma-separated, e.g. `admin,agent`) |
-| `team_id` | `int` | Filter by team (use `0` for unassigned) |
-| `is_active` | `bool` | Filter by active status |
-| `sort_by` | `string` | Sort field: `created_at`, `updated_at`, `name`, `username`, `email`, `role` |
-| `order` | `string` | `asc` or `desc` (default: `desc`) |
-
-### Teams
-
-| Method | Endpoint | Description | Auth |
-|---|---|---|:---:|
-| `POST` | `/teams` | Create a team | Admin |
-| `GET` | `/teams` | List all teams (paginated, sortable) | Admin |
-| `GET` | `/teams/{id}` | Get team by ID | Role-scoped |
-| `PUT` | `/teams/{id}` | Update team | Admin |
-| `DELETE` | `/teams/{id}` | Soft-delete team (cascades to users/tickets) | Admin |
-| `PATCH` | `/teams/{id}/reactivate` | Re-enable a soft-deleted team | Admin |
-| `GET` | `/teams/{id}/stats` | Get team ticket stats (by status, member count) | Admin |
-| `GET` | `/teams/{id}/members` | List team members (paginated, sortable) | Role-scoped |
-
-### Tickets
-
-| Method | Endpoint | Description | Auth |
-|---|---|---|:---:|
-| `POST` | `/tickets` | Create a ticket | All roles |
-| `GET` | `/tickets` | List tickets (paginated, searchable, filterable, sortable) | All roles |
-| `GET` | `/tickets/created-by-me` | Tickets created by current user | All roles |
-| `GET` | `/tickets/assigned-to-me` | Tickets assigned to current user | All roles |
-| `GET` | `/tickets/team/{team_id}` | Tickets for a team | Admin, Agent |
-| `GET` | `/tickets/user/{user_id}/assigned` | Tickets assigned to a specific user | Admin |
-| `GET` | `/tickets/stats` | Ticket stats by status/priority (optional `?team_id=`) | Admin |
-| `GET` | `/tickets/{id}` | Get ticket by ID | Role-scoped |
-| `PATCH` | `/tickets/{id}` | Update ticket | Role-scoped |
-| `DELETE` | `/tickets/{id}` | Soft-delete ticket | Role-scoped |
-| `PATCH` | `/tickets/{id}/reactivate` | Re-enable a soft-deleted ticket | Admin |
-| `GET` | `/tickets/{id}/history` | Get ticket audit history | Role-scoped |
-
-#### Ticket Query Parameters
-
-| Parameter | Type | Description |
-|---|---|---|
-| `search` | `string` | Search in title and description (case-insensitive) |
-| `status` | `string` | Filter by status (comma-separated, e.g. `open,in_progress`) |
-| `priority` | `string` | Filter by priority (comma-separated, e.g. `high,urgent`) |
-| `sort_by` | `string` | Sort field: `created_at`, `updated_at`, `priority`, `status`, `title` |
-| `order` | `string` | `asc` or `desc` (default: `desc`) |
-
-### Comments
-
-| Method | Endpoint | Description | Auth |
-|---|---|---|:---:|
-| `POST` | `/tickets/{id}/comments` | Add comment to a ticket | Role-scoped |
-| `GET` | `/tickets/{id}/comments` | List comments (paginated, sortable) | Role-scoped |
-| `GET` | `/comments/{id}` | Get single comment | Role-scoped |
-| `PATCH` | `/comments/{id}` | Edit a comment | Role-scoped |
-| `DELETE` | `/comments/{id}` | Delete a comment | Role-scoped |
-
-### Attachments
-
-| Method | Endpoint | Description | Auth |
-|---|---|---|:---:|
-| `POST` | `/tickets/{id}/attachments/presign` | Get a presigned S3 URL to upload a file | All roles |
-| `POST` | `/tickets/{id}/attachments/{aid}/confirm` | Confirm the file was uploaded to S3 | All roles |
-| `GET` | `/tickets/{id}/attachments` | List all confirmed attachments with download URLs | All roles |
-| `GET` | `/tickets/{id}/attachments/{aid}/download` | Get a fresh presigned download URL | All roles |
-| `DELETE` | `/tickets/{id}/attachments/{aid}` | Delete attachment (uploader or admin only) | Role-scoped |
-
-### Pagination Response Format
-
-All list endpoints return a paginated response:
-
-```json
-{
-  "items": [...],
-  "total": 42,
-  "limit": 10,
-  "offset": 0,
-  "has_more": true
-}
-```
-
-### System
-
-| Method | Endpoint | Description | Auth |
-|---|---|---|:---:|
-| `GET` | `/` | API info | No |
-| `GET` | `/health` | Health check (API + DB + Redis) | No |
-
----
-
-## Testing
-
-Tests use a separate PostgreSQL database (`TEST_DATABASE_URL`) with per-test transaction rollback for isolation. Redis is automatically mocked.
-
-```bash
-# Run all 209 tests
-pytest
-
-# Verbose output
-pytest -v
-
-# Run a specific test file
-pytest tests/test_ticket_services.py -v
-```
-
-### Test Architecture
-
-- **`conftest.py`**: creates schema once per session, provides `db` fixture with transaction rollback, auto-mocks Redis, provides role-specific `TestClient` fixtures (`admin_client`, `agent_client`, `employee_client`)
-- **Service tests**: test business logic directly against the DB
-- **Route tests**: test HTTP endpoints via `TestClient`
-- **Schema tests**: validate Pydantic field validators
-- **Security tests**: JWT creation, verification, and expiry
-
-### Test Coverage
-
-| Module | Test File | Tests |
-|---|---|---|
-| Auth (service) | `test_auth_service.py` | User creation, login, duplicate detection |
-| Auth (routes) | `test_auth_routes.py` | Login endpoint, register endpoint |
-| Users (service) | `test_user_services.py` | CRUD for all 3 roles, password changes |
-| Users (routes) | `test_user_routes.py` | HTTP-level role enforcement |
-| Teams (service) | `test_team_services.py` | Create, read, update, delete, members |
-| Teams (routes) | `test_team_routes.py` | HTTP-level role enforcement |
-| Tickets (service) | `test_ticket_services.py` | CRUD, status transitions, assignment rules |
-| Tickets (routes) | `test_ticket_routes.py` | HTTP-level role enforcement |
-| Comments (service) | `test_comment_services.py` | CRUD, ownership checks |
-| Comments (routes) | `test_comment_routes.py` | HTTP-level role enforcement |
-| Schemas | `test_schemas.py` | Field validation, length limits, empty strings |
-| Security | `test_security.py` | Password hashing, JWT tokens |
-
----
-
-## Implementation Details
-
-### Role Enforcement
-
-Each service method checks `current_user.role` against `UserRole` enum values as its first operation and raises `PermissionDeniedException` if the role doesn't match. Role checks live in the service layer, not just on routes, so business logic is testable without going through HTTP. Routers dispatch to the correct role-specific service using a `_get_*_service()` lookup.
-
-### Redis Caching
-
-Responses are cached with structured keys like `tickets:all:10:0` or `comments:ticket:5:10:0`. On any mutation, affected keys are invalidated using `delete_by_prefix()`, which performs a Redis `SCAN` + `DELETE`. All Redis operations use `safe_*` wrappers that swallow exceptions - the app degrades gracefully without Redis.
-
-### Ticket Assignment Validation
-
-When assigning a ticket to a user and a team simultaneously, the system validates that the user belongs to that team. If only a user is provided (no team), the ticket's `team_id` is auto-populated from the user's team. Sentinel values signal explicit removal: `assigned_to = -1` to unassign a user, `team_id = 0` to remove team assignment (admin only).
-
-### Soft Deletes
-
-Users, teams, and tickets are never hard-deleted. Setting `is_active = False` removes them from all queries. Deleting a team cascades: all users in the team have their `team_id` cleared, and all active tickets for that team have their `team_id` and `assigned_to` cleared to prevent stale references. Soft-deleted resources can be re-enabled via `PATCH /{resource}/{id}/reactivate` (admin only).
-
-### `resolved_at` Tracking
-
-When a ticket's status is set to `resolved`, the `resolved_at` timestamp is automatically recorded in UTC. This happens in both the admin and agent ticket services.
-
-### Audit Trails
-
-Action logging records `CREATED`, `UPDATED`, and `DELETED` events inside the `audit_logs` table. Updates capture JSON changes. Transactions are consolidated so that a ticket operation and its audit log record commit together in a single transaction.
-
-## Future Improvements
-
-- [x] **File Attachments**: S3-backed presigned URL upload/download for ticket attachments
-- [x] **Email integration**: replace the print stub `send_welcome_email` with a real SMTP client (implemented via Celery + AWS SES SMTP)
-- [x] **Containerization**: Dockerfile and docker-compose for PostgreSQL, Redis, and the API
-- [ ] **Refresh tokens**: current JWTs have no refresh mechanism
-- [x] **WebSocket notifications**: real-time updates when tickets are assigned or status changes (implemented via WebSockets + Redis Pub/Sub)
-- [ ] **Bulk operations**: update/delete multiple tickets at once
