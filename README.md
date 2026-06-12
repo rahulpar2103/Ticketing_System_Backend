@@ -129,11 +129,11 @@ A production-grade backend REST API for managing internal support tickets. Built
 │   │   ├── database.py           # SQLAlchemy engine, session, Base
 │   │   └── redis.py              # Redis client + safe_* helper wrappers
 │   ├── dependencies/             # FastAPI DI: get_db(), get_current_user()
-│   ├── models/                   # SQLAlchemy ORM models (6 tables)
-│   ├── routers/                  # API route definitions (8 modules)
+│   ├── models/                   # SQLAlchemy ORM models (7 tables)
+│   ├── routers/                  # API route definitions (9 modules)
 │   ├── schemas/                  # Pydantic request/response schemas
-│   ├── services/                 # Business logic split by role (admin/agent/employee)
-│   └── tasks/                    # Celery async tasks (email)
+│   ├── services/                 # Business logic split by role + RAG/Gemini service
+│   └── tasks/                    # Celery async tasks (email + vector indexing)
 ├── tests/                        # pytest test suite (14 test files)
 ├── scripts/seed.py               # Database seeder (5 teams, 15 users, 13 tickets)
 ├── .github/workflows/ci-cd.yml   # GitHub Actions CI pipeline
@@ -180,6 +180,9 @@ cp app/.env.example app/.env
 | `AWS_ACCESS_KEY_ID` | AWS credentials for S3 | `AKIA...` |
 | `S3_BUCKET_NAME` | S3 bucket for attachments | `my-ticketing-attachments` |
 | `SMTP_HOST` | AWS SES SMTP endpoint | `email-smtp.us-east-1.amazonaws.com` |
+| `GEMINI_API_KEY` | Google Gemini API key for Chatbot | `AIzaSy...` |
+| `EMBEDDING_MODEL` | Gemini model for vector embeddings | `models/gemini-embedding-2` |
+| `LLM_MODEL` | Gemini model for LLM responses | `gemini-2.5-flash` |
 
 ---
 
@@ -188,7 +191,11 @@ cp app/.env.example app/.env
 ### Option 1: Local
 
 ```bash
+# Start backend API server
 uvicorn app.main:app --reload
+
+# Backfill AI Chatbot vector database embeddings
+python index_all.py
 ```
 
 ### Option 2: Docker (Recommended)
@@ -202,6 +209,9 @@ docker compose exec web pytest
 
 # Seed sample data
 docker compose exec web python scripts/seed.py
+
+# Backfill AI Chatbot vector database inside container
+docker compose exec web python index_all.py
 ```
 
 | URL | Description |
