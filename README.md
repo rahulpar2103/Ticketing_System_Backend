@@ -14,13 +14,15 @@ A production-grade backend REST API for managing internal support tickets. Built
 | Framework | FastAPI |
 | Language | Python 3.12+ |
 | ORM | SQLAlchemy 2.0 (Core + ORM) |
-| Database | PostgreSQL 15 |
+| Database | PostgreSQL 15 + pgvector |
 | Migrations | Alembic |
+| Vector Search | Google text-embedding-004 via google-generativeai SDK |
+| AI Chatbot LLM | Gemini 2.5 Flash via google-generativeai SDK |
 | Caching | Redis 7 |
 | Auth | JWT (PyJWT) + bcrypt via passlib, token blacklisting via Redis |
 | Validation | Pydantic v2, pydantic-settings |
 | Rate Limiting | slowapi |
-| Testing | pytest (209+ tests), FastAPI TestClient |
+| Testing | pytest (214+ tests), FastAPI TestClient |
 | File Storage | AWS S3 (presigned URL upload/download) |
 | Email | SMTP (AWS SES) via Celery async tasks |
 | Task Queue | Celery with Redis broker |
@@ -33,6 +35,12 @@ A production-grade backend REST API for managing internal support tickets. Built
 ---
 
 ## Features
+
+### AI Chatbot & RAG Integration
+- **Profile-Aware Retrieval:** Automatically scopes retrieved database context (tickets and comments) based on the user's role (Admin, Agent, Employee) to prevent unauthorized data access.
+- **Dynamic Context Routing:** Intelligently routes queries requesting aggregate counts or lists to database SQL queries for precise figures, while routing semantic questions to pgvector search.
+- **Asynchronous Vector Indexing:** Employs Celery workers to asynchronously update or delete vector documents on ticket and comment mutations (create, edit, delete, reactivate).
+- **Embedded Backfill Script:** Provides a utility script `index_all.py` to embed and seed the entire database into the vector store.
 
 ### Authentication & Security
 - JWT token-based authentication with login via username or email
@@ -233,6 +241,12 @@ docker compose exec web python scripts/seed.py
 ### Attachments - 5 endpoints
 
 `POST /tickets/{id}/attachments/presign` · `POST /tickets/{id}/attachments/{aid}/confirm` · `GET /tickets/{id}/attachments` · `GET /tickets/{id}/attachments/{aid}/download` · `DELETE /tickets/{id}/attachments/{aid}`
+
+### Chatbot - 1 endpoint
+
+| Method | Endpoint | Description | Auth |
+|---|---|---|:---:|
+| `POST` | `/chatbot/chat` | Get profile-aware AI assistant chatbot response | Yes |
 
 ### WebSocket
 
