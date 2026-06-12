@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
 
 class Settings(BaseSettings):
     DATABASE_URL: str
@@ -39,3 +40,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=(".env", "app/.env"))
 
 settings = Settings()
+
+# Expose GEMINI_API_KEY as GOOGLE_API_KEY for LangChain's langchain-google-genai
+# which auto-reads GOOGLE_API_KEY from the environment.
+if settings.GEMINI_API_KEY:
+    os.environ["GOOGLE_API_KEY"] = settings.GEMINI_API_KEY
+
