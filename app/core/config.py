@@ -36,6 +36,6 @@ class Settings(BaseSettings):
         "https://ticketing-system-frontend-8tzpolizj-anonymous21-03s-projects.vercel.app"
     ]
     
-    model_config = SettingsConfigDict(env_file="app/.env")
+    model_config = SettingsConfigDict(env_file=(".env", "app/.env"))
 
 settings = Settings()
