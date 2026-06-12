@@ -16,8 +16,9 @@ A production-grade backend REST API for managing internal support tickets. Built
 | ORM | SQLAlchemy 2.0 (Core + ORM) |
 | Database | PostgreSQL 15 + pgvector |
 | Migrations | Alembic |
-| Vector Search | Google text-embedding-004 via google-generativeai SDK |
-| AI Chatbot LLM | Gemini 2.5 Flash via google-generativeai SDK |
+| Vector Search | Google text-embedding-004 via LangChain |
+| AI Chatbot LLM | Gemini 2.5 Flash via LangChain |
+| AI Orchestration | LangChain (langchain-core, langchain-google-genai) |
 | Caching | Redis 7 |
 | Auth | JWT (PyJWT) + bcrypt via passlib, token blacklisting via Redis |
 | Validation | Pydantic v2, pydantic-settings |
@@ -36,8 +37,9 @@ A production-grade backend REST API for managing internal support tickets. Built
 
 ## Features
 
-### AI Chatbot & RAG Integration
-- **Profile-Aware Retrieval:** Automatically scopes retrieved database context (tickets and comments) based on the user's role (Admin, Agent, Employee) to prevent unauthorized data access.
+### AI Chatbot & RAG Integration (LangChain-powered)
+- **LangChain Retrieval Chain:** Uses a conversational retrieval chain with chat history (`create_retrieval_chain` + `create_history_aware_retriever`) to provide context-aware, flowing conversations.
+- **Profile-Aware Retrieval:** Uses a custom LangChain `BaseRetriever` (`TicketingRetriever`) to automatically scope retrieved database context (tickets and comments) based on the user's role (Admin, Agent, Employee) to prevent unauthorized data access.
 - **Dynamic Context Routing:** Intelligently routes queries requesting aggregate counts or lists to database SQL queries for precise figures, while routing semantic questions to pgvector search.
 - **Asynchronous Vector Indexing:** Employs Celery workers to asynchronously update or delete vector documents on ticket and comment mutations (create, edit, delete, reactivate).
 - **Embedded Backfill Script:** Provides a utility script `index_all.py` to embed and seed the entire database into the vector store.
@@ -132,7 +134,7 @@ A production-grade backend REST API for managing internal support tickets. Built
 │   ├── models/                   # SQLAlchemy ORM models (7 tables)
 │   ├── routers/                  # API route definitions (9 modules)
 │   ├── schemas/                  # Pydantic request/response schemas
-│   ├── services/                 # Business logic split by role + RAG/Gemini service
+│   ├── services/                 # Business logic split by role + RAG/LangChain service
 │   └── tasks/                    # Celery async tasks (email + vector indexing)
 ├── tests/                        # pytest test suite (14 test files)
 ├── scripts/seed.py               # Database seeder (5 teams, 15 users, 13 tickets)
@@ -180,7 +182,7 @@ cp app/.env.example app/.env
 | `AWS_ACCESS_KEY_ID` | AWS credentials for S3 | `AKIA...` |
 | `S3_BUCKET_NAME` | S3 bucket for attachments | `my-ticketing-attachments` |
 | `SMTP_HOST` | AWS SES SMTP endpoint | `email-smtp.us-east-1.amazonaws.com` |
-| `GEMINI_API_KEY` | Google Gemini API key for Chatbot | `AIzaSy...` |
+| `GEMINI_API_KEY` | Google Gemini API key (automatically exposed to LangChain) | `AIzaSy...` |
 | `EMBEDDING_MODEL` | Gemini model for vector embeddings | `models/gemini-embedding-2` |
 | `LLM_MODEL` | Gemini model for LLM responses | `gemini-2.5-flash` |
 
