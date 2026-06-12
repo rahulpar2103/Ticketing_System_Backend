@@ -59,6 +59,9 @@ def create_test_db_if_not_exists():
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
     create_test_db_if_not_exists()
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)

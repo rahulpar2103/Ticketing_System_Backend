@@ -59,9 +59,10 @@ def format_comment_text(comment: Comment) -> str:
     return (
         f"Comment on Ticket ID {comment.ticket_id} (Title: '{ticket_title}')\n"
         f"Author: {author}\n"
-        f"Comment Content: {comment.content}\n"
+        f"Comment Content: {comment.comment}\n"
         f"Created At: {comment.created_at}\n"
     )
+
 
 def index_ticket(db: Session, ticket: Ticket) -> bool:
     """Embed and index a ticket into the vector_documents table."""

@@ -3,9 +3,14 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__))))
 
 from app.db.database import session_local
+from app.models.userModel import User
+from app.models.teamModel import Team
 from app.models.ticketModel import Ticket
 from app.models.commentModel import Comment
+from app.models.attachmentModel import Attachment
+from app.models.auditModel import AuditLog
 from app.services import rag_service
+
 
 def index_all():
     db = session_local()
